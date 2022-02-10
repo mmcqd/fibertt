@@ -1,0 +1,47 @@
+
+def Id (A : Type) (x y : A) : Type => (B : A -> Type) -> B x -> B y
+def refl (A : Type) (x : A) : Id A x x => \B p => p
+
+def Bool : Type => (A : Type) -> A -> A -> A
+def tt : Bool => \A t f => t
+def ff : Bool => \A t f => f
+
+def Nat : Type => (A : Type) -> (A -> A) -> A -> A
+def zero : Nat => \A s z => z
+def suc (n : Nat) : Nat => \A s z => s (n A s z)
+
+
+def not (x : Bool) : Bool => x Bool ff tt 
+
+def test : Id Bool (not ff) tt => \B p => p
+
+def test : Sub Bool tt => not ff
+
+
+
+def + (n m : Nat) : Nat => n Nat suc m
+
+def test : Sub Nat (+ (suc zero) (suc zero)) => suc (suc zero)
+
+def x : Sub Bool tt => tt
+
+def f (A : Type) (g : A -> A) : (x : A) -> Sub A (g x) => \x => g x
+
+def test (A : Type) (x : A) (p : Sub A x) : Id A p x => \B p => p
+
+
+
+{-
+
+Point = {type : Type ; el : type}
+Pi = {dom : Type ; cod : dom -> Type ; el : (x : dom) -> cod x}
+Sg = {fst : Type ; snd : fst -> Type ; el : (x : fst) * snd x}
+Id = {param : Type ; left : param ; right : param ; el : Id param left right}
+List = {param : Type ; el : List param}
+
+ 
+def id (x : Point) : x.type => x.el
+
+def + : Nat -> Nat -> Nat
+
+-}
