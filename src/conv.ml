@@ -24,6 +24,11 @@ let rec conv (tm1 : Dom.t) (tm2 : Dom.t) (tp : Dom.tp) : unit conv = let open Co
       let* e1 = lift_comp @@ Eval.do_outS tm1 in
       let* e2 = lift_comp @@ Eval.do_outS tm2 in
       conv e1 e2 tp
+    | Dom.U, Dom.RTyCons (field1,tp1,rest1), Dom.RTyCons (field2,tp2,rest2) when String.equal field1 field2 ->
+      conv_fam field1 tp1 tp2 rest1 rest2
+    | Dom.U, Dom.RTyNil, Dom.RTyNil -> ret ()
+    | Dom.RTyCons _, _, _
+    | Dom.RTyNil, _, _ -> conv_record tm1 tm2 tp
     | _, Dom.Neu n1, Dom.Neu n2 -> 
       conv_spine n1.hd n2.hd n1.sp n2.sp
     | _ -> 
@@ -31,6 +36,20 @@ let rec conv (tm1 : Dom.t) (tm2 : Dom.t) (tp : Dom.tp) : unit conv = let open Co
       let* tm2 = quote tm2 tp in
       let* tp = quote tp Dom.U in
       failwith (sprintf "%s <> %s : %s" tm1 tm2 tp)
+
+and conv_record r1 r2 tp = let open ConvMonad in
+  match Eval.force tp with
+    | Dom.RTyNil -> ret ()
+    | Dom.RTyCons (field,tp,rest) ->
+      let* f1 = lift_comp @@ Eval.do_proj field r1 in
+      let* f2 = lift_comp @@ Eval.do_proj field r2 in
+      let* () = conv f1 f2 tp in
+      let* r1 = lift_comp @@ Eval.do_rest r1 in
+      let* r2 = lift_comp @@ Eval.do_rest r2 in
+      let* rest = lift_comp @@ Eval.do_clo rest f1 in
+      conv_record r1 r2 rest
+    | _ -> failwith ""
+      
 
 and conv_hd hd1 hd2 = let open ConvMonad in
   match hd1, hd2 with
@@ -42,6 +61,10 @@ and conv_spine hd1 hd2 sp1 sp2 = let open ConvMonad in
     | [], [] -> conv_hd hd1 hd2
     | Dom.Ap ap1 :: sp1, Dom.Ap ap2 :: sp2 -> 
       let* () = conv ap1.tm ap2.tm ap1.tp in
+      conv_spine hd1 hd2 sp1 sp2
+    | Dom.Proj field1 :: sp1, Dom.Proj field2 :: sp2 when String.equal field1 field2 ->
+      conv_spine hd1 hd2 sp1 sp2
+    | Dom.Rest :: sp1, Dom.Rest :: sp2 ->
       conv_spine hd1 hd2 sp1 sp2
 
     (* We want (p : Sub A x |- OutS p = x : A), so when converting spines, if we hit and OutS {tm ; tp}, we know the rest of the term is

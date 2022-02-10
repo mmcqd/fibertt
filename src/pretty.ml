@@ -23,6 +23,12 @@ let rec term : Syn.t -> string print = let open PrintMonad in function
     let* tm = atom tm in
     let+ tp = atom tp in
     sprintf "Sub %s %s" tp tm
+  | (RTyCons _ | RTyNil) as r ->
+    let+ r = record_ty r in
+    sprintf "sig {%s}" r
+  | (RCons _ | RNil) as r ->
+    let+ r = record r in
+    sprintf "struct {%s}" r
   | t -> atom t
 
 and atom : Syn.t -> string print = let open PrintMonad in function
@@ -31,8 +37,33 @@ and atom : Syn.t -> string print = let open PrintMonad in function
   | Def name -> ret name
   | InS e -> atom e
   | OutS e -> atom e
+  | Proj (field,e) ->
+    let+ e = atom e in
+    sprintf "%s.%s" e field
   | a -> 
     let+ a = term a in
     sprintf "(%s)" a
+
+and record = let open PrintMonad in function
+  | RNil -> ret ""
+  | RCons (field,x,RNil) ->
+    let+ x = term x in
+    sprintf "%s => %s" field x
+  | RCons (field,x,xs) ->
+    let* x = term x in
+    let+ xs = record xs in
+    sprintf "%s => %s ; %s" field x xs
+  | _ -> failwith "ill formed record"
+
+and record_ty = let open PrintMonad in function
+  | RTyNil -> ret ""
+  | RTyCons (field,tp,RTyNil) ->
+    let+ tp = term tp in
+    sprintf "%s : %s" field tp
+  | RTyCons (field,tp,rest) ->
+    let* tp = term tp in
+    let+ rest = abstract field @@ record_ty rest in
+    sprintf "%s : %s ; %s" field tp rest
+  | _ -> failwith "ill formed record"
 
 let print = term

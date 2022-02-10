@@ -31,6 +31,27 @@ def test (A : Type) (x : A) (p : Sub A x) : Id A p x => \B p => p
 
 
 
+def & (A B : Type) : Type => sig {fst : A ; snd : B}
+def fst (A B : Type) (p : & A B) : A => p.fst
+def snd (A B : Type) (p : & A B) : B => p.snd
+
+def p : & Nat Bool => struct {fst => zero ; snd => tt}
+
+def Sg (A : Type) (B : A -> Type) : Type => sig {fst : A ; snd : B fst}
+def fst (A : Type) (B : A -> Type) (p : Sg A B) : A => p.fst
+def snd (A : Type) (B : A -> Type) (p : Sg A B) : B (p.fst) => p.snd
+
+def p : Sg Bool \b => Id Bool b tt => struct {fst => tt ; snd => \B p => p}
+
+
+def Pt : Type => sig {type : Type ; pt : type}
+def mkPt (A : Type) (x : A) : Pt => struct {type => A ; pt => x}
+
+def id (x : Pt) : x.type => x.pt
+
+def const (x : Pt) (y : sig {type : Sub Type x.type ; pt : type}) : x.type => x.pt
+
+
 {-
 
 Point = {type : Type ; el : type}

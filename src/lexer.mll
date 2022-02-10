@@ -17,17 +17,17 @@ rule initial = parse
   | '{' { LCURLY }
   | '}' { RCURLY }
   | '|' { BAR }
+  | '.' { DOT }
   | ':' { COLON }
+  | ';' { SEMICOLON }
   | '_' { UNDERBAR }
   | '/' { FSLASH }
   | '?' { HOLE }
-  | ',' { COMMA }
   | '\\' | "λ" { LAMBDA }
   | "->" | "→" { R_ARROW }
   | "=>" | "⇒" { R_EQ_ARROW }
-  | '*'  | "×" { STAR }
-  | ".1" { DOT1 }
-  | ".2" { DOT2 }
+  | "sig" { SIG }
+  | "struct" { STRUCT }
   | "Type" { TYPE }
   | "Sub" { SUB }
   | "elim" { ELIM }

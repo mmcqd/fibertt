@@ -53,6 +53,50 @@ struct
       | _ -> failwith "Pi.elim"
 end
 
+module Record =
+struct
+  open ElabMonad
+
+  let nil_formation : chk_tac = fun goal -> 
+    match Eval.force goal with
+      | Dom.U -> ret Syn.RTyNil
+      | _ -> failwith "Record.nil_formation"
+  let cons_formation (field : string) (tp : chk_tac) (rest : Dom.t -> chk_tac) : chk_tac = fun goal ->
+    match Eval.force goal with
+      | Dom.U -> 
+        let* tp = run_chk ~goal:Dom.U tp in
+        let* tp_d = lift_eval @@ Eval.eval tp in
+        let+ rest = abstract ~name:field ~tp:tp_d @@ fun v -> run_chk ~goal:Dom.U (rest v) in
+        Syn.RTyCons (field,tp,rest)
+      | _ -> failwith  "Record.cons_formation" 
+    
+  let nil_intro : chk_tac = fun goal ->
+    match Eval.force goal with
+      | Dom.RTyNil -> ret Syn.RNil
+      | _ -> failwith "Record.nil_intro"
+  
+  let cons_intro (field : string) (x : chk_tac) (xs : chk_tac) : chk_tac = fun goal ->
+    match Eval.force goal with
+      | Dom.RTyCons (field',tp,rest) when String.equal field field' -> 
+        let* x = run_chk ~goal:tp x in
+        let* x_d = lift_eval @@ Eval.eval x in
+        let* rest = lift_comp @@ Eval.do_clo rest x_d in
+        let+ xs = run_chk ~goal:rest xs in
+        Syn.RCons (field,x,xs)
+      | _ -> failwith "Record.cons_intro"
+
+
+  let elim (field : string) (r : syn_tac) : syn_tac =
+    let* tp,r = run_syn r in
+    match Eval.force tp with
+      | Dom.RTyCons _ -> 
+        let* r_d = lift_eval @@ Eval.eval r in
+        let+ tp = lift_comp @@ Eval.do_proj_tp field r_d tp in
+        tp, Syn.Proj (field,r)
+      | _ -> failwith (sprintf "Expected record but found %s" (Dom.show tp))
+end
+
+
 module Singleton =
 struct
   open ElabMonad
@@ -70,12 +114,7 @@ struct
       | Dom.Singleton {tm ; tp} -> 
         let* e = run_chk ~goal:tp e in
         let* e_d = lift_eval @@ Eval.eval e in
-        let+ () = lift_conv @@ Conv.conv e_d tm tp 
-          (* let* tm = lift_quote ~unfold:false @@ Quote.quote tm tp in
-          let* tm = lift_print @@ Pretty.print tm in
-          let* e = lift_print @@ Pretty.print e in
-          failwith (sprintf "%s <> %s" e tm)  *)
-        in
+        let+ () = lift_conv @@ Conv.conv e_d tm tp in
         Syn.InS e
       | _ -> failwith "Singleton.intro"
   

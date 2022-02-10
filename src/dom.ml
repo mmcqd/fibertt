@@ -6,6 +6,10 @@ type t =
   | Pi of string * t * clo
   | InS of t
   | Singleton of {tm : t ; tp : tp}
+  | RTyCons of string * t * clo
+  | RTyNil
+  | RCons of string * t * t
+  | RNil
   | Neu of {hd : head ; sp : spine ; tp : t [@opaque]}
 
 and head =
@@ -15,6 +19,8 @@ and head =
 and elim =
   | Ap of {tm : t ; tp : t [@opaque]}
   | OutS of {tm : t ; tp : t}
+  | Proj of string
+  | Rest
 
 and spine = elim list
 

@@ -22,8 +22,7 @@ let rec eval : Syn.t -> Dom.t eval = let open EvalMonad in function
     let* e = eval e in
     lift_comp @@ do_ap f e 
   | Syn.Pi (x,dom,ran) ->
-    let* dom = eval dom in
-    let+ ran = mk_clo ran in
+    let+ dom,ran = eval_fam dom ran in
     Dom.Pi (x,dom,ran)
   | Syn.InS e ->
     let+ e = eval e in
@@ -35,6 +34,26 @@ let rec eval : Syn.t -> Dom.t eval = let open EvalMonad in function
     let* tm = eval tm in
     let+ tp = eval tp in
     Dom.Singleton {tm ; tp}
+  | Syn.RTyCons (field, tp, rest) ->
+    let+ tp,rest = eval_fam tp rest in
+    Dom.RTyCons (field,tp,rest)
+  | Syn.RTyNil -> ret Dom.RTyNil
+  | Syn.RCons (field,x,xs) -> 
+    let* x = eval x in
+    let+ xs = eval xs in
+    Dom.RCons (field, x, xs)
+  | Syn.RNil -> ret Dom.RNil
+  | Syn.Proj (field,r) -> 
+    let* r = eval r in
+    lift_comp @@ do_proj field r
+  | Syn.Rest r ->
+    let* r = eval r in
+    lift_comp @@ do_rest r
+
+and eval_fam base fam = let open EvalMonad in
+  let* base = eval base in
+  let+ fam = mk_clo fam in
+  (base,fam)
 
 and do_ap f e = let open CompMonad in
   match f with
@@ -62,6 +81,41 @@ and do_outS e = let open CompMonad in
         | _ -> failwith "do_outS"
       end
     | _ -> failwith "do_outS"
+
+and do_proj field r = let open CompMonad in
+  match r with
+    | Dom.RCons (field',x,_) when String.equal field field' -> ret x
+    | Dom.RCons (_,_,xs) -> do_proj field xs
+    | Dom.Neu {hd ; sp ; tp} ->
+      let* tp = do_proj_tp field r tp in
+      let+ hd = do_hd (do_proj field) hd in
+      Dom.Neu {hd ; sp = Dom.Proj field :: sp ; tp}
+    | _ -> failwith "do_proj"
+
+and do_proj_tp field r tp = let open CompMonad in
+  match force tp with
+    | Dom.RTyCons (field',tp,_) when String.equal field field' -> ret tp
+    | Dom.RTyCons (field',_,rest) -> 
+      let* f = do_proj field' r in
+      let* rest = do_clo rest f in
+      do_proj_tp field r rest
+    | _ -> failwith "do_proj_tp"
+  
+and do_rest r = let open CompMonad in
+  match r with
+    | Dom.RCons (_,_,xs) -> ret xs
+    | Dom.Neu {hd ; sp ; tp} ->
+      begin
+      match force tp with
+        | Dom.RTyCons (field,_,rest) -> 
+          let* hd = do_hd do_rest hd in
+          let* f = do_proj field r in
+          let+ rest = do_clo rest f in
+          Dom.Neu {hd ; sp = Dom.Rest :: sp ; tp = rest}
+        | _ -> failwith "do_rest"
+      end
+    | _ -> failwith "do_rest"
+      
 
 and do_hd f = let open CompMonad in function
   | Dom.Def {name ; value} -> 

@@ -26,6 +26,16 @@ let rec quote (tm : Dom.t) (tp : Dom.tp) : Syn.t quote = let open QuoteMonad in
     | Dom.Singleton {tp ; _}, Dom.InS e ->
       let+ e = quote e tp in
       Syn.InS e
+    | Dom.U, Dom.RTyCons (field, tp, rest) -> 
+      let+ (tp_s,rest_s) = quote_fam tp rest in
+      Syn.RTyCons (field, tp_s, rest_s)
+    | Dom.U, Dom.RTyNil -> ret Syn.RTyNil
+    | Dom.RTyCons (field,tp,rest), Dom.RCons (field',x,xs) when String.equal field field' ->
+      let* x_s = quote x tp in
+      let* rest = lift_comp @@ Eval.do_clo rest x in
+      let+ xs_s = quote xs rest in
+      Syn.RCons (field, x_s, xs_s)
+    | Dom.RTyNil, Dom.RNil -> ret Syn.RNil
     |_ ,Dom.Neu {hd = Def {name ; value} ; sp ; _} ->
       let* unfold = read_unfold in
       if unfold then quote (Lazy.force value) tp else quote_spine (Syn.Def name) sp
@@ -43,6 +53,12 @@ and quote_spine (hd : Syn.t) : Dom.elim list -> Syn.t quote = let open QuoteMona
   | Dom.OutS _ :: sp ->
     let+ e = quote_spine hd sp in
     Syn.OutS e
+  | Dom.Proj field :: sp -> 
+    let+ e = quote_spine hd sp in
+    Syn.Proj (field,e)
+  | Dom.Rest :: sp ->
+    let+ e = quote_spine hd sp in
+    Syn.Rest e
   
 and quote_fam base fam = let open QuoteMonad in
   let* base_s = quote base Dom.U in

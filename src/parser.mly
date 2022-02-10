@@ -11,7 +11,7 @@ open Raw
 %token LAMBDA R_ARROW R_EQ_ARROW
 %token TELE
 %token SUB
-%token STAR COMMA DOT1 DOT2
+%token SIG STRUCT SEMICOLON DOT
 %token TYPE
 %token ELIM BAR FSLASH
 %token DATA
@@ -64,6 +64,12 @@ let spine_ :=
   | x = atom; { [x] }
   | x = atom; xs = spine_; { x :: xs }
 
+let sig_elem :=
+  | field = IDENT; COLON; tp = term; { (field,tp) }
+
+let struct_elem :=
+  | field = IDENT; R_EQ_ARROW; tp = term; { (field,tp) }
+
 let term := loc(term_)
 let term_ := 
   | atom_
@@ -71,6 +77,8 @@ let term_ :=
   | dom = term; R_ARROW; ran = term; { Pi ([(["_"],dom)], ran) }
   | doms = tele; R_ARROW; ran = term; { Pi (doms,ran) }
   | SUB; tp = atom; tm = atom; { Singleton {tm ; tp} }
+  | SIG; LCURLY; fields = separated_list(SEMICOLON,sig_elem); RCURLY; { RecordTy fields }
+  | STRUCT; LCURLY; fields = separated_list(SEMICOLON,struct_elem); RCURLY; { Record fields }
   | lam_term_
 
 let lam_term := loc(lam_term_)
@@ -81,4 +89,5 @@ let atom == loc(atom_)
 let atom_ :=
   | TYPE; { U }
   | ~ = IDENT; <Var>
+  | r = atom; DOT; field = IDENT; { Proj (field,r) }
   | paren(term_)

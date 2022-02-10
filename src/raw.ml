@@ -7,6 +7,9 @@ type _t =
   | Pi of tele * t
   | Ap of t * t list
   | Singleton of {tm : t ; tp : t}
+  | Record of (string * t) list
+  | RecordTy of (string * t) list
+  | Proj of string * t
   [@@deriving show {with_path = false}]
 
 and t = {con : _t ; loc : loc}
