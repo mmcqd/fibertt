@@ -70,12 +70,16 @@ and conv_spine hd1 hd2 sp1 sp2 = let open ConvMonad in
     (* We want (p : Sub A x |- OutS p = x : A), so when converting spines, if we hit and OutS {tm ; tp}, we know the rest of the term is
       definitionally equal to tm 
     *)
-    | Dom.OutS o1 :: _, Dom.OutS o2 :: _ ->
-      conv o1.tm o2.tm o1.tp
-    | Dom.OutS {tm ; tp} :: _, sp2 -> 
+    (* | Dom.OutS o1 :: sp1, Dom.OutS o2 :: sp2 ->
+      let* tm1 = lift_comp @@ Eval.do_spine o1.tm sp1 in
+      let* tm2 = lift_comp @@ Eval.do_spine o2.tm sp2 in
+      conv tm1 tm2 o1.tp
+    | Dom.OutS {tm ; tp} :: sp1, sp2 -> 
+      let* tm = lift_comp @@ Eval.do_spine tm sp1 in
       conv tm (Dom.Neu {hd = hd2 ; sp = sp2 ; tp}) tp
-    | sp1 , Dom.OutS {tm ; tp} :: _ -> 
-      conv (Dom.Neu {hd = hd1 ; sp = sp1 ; tp}) tm tp
+    | sp1 , Dom.OutS {tm ; tp} :: sp2 ->
+      let* tm = lift_comp @@ Eval.do_spine tm sp2 in 
+      conv (Dom.Neu {hd = hd1 ; sp = sp1 ; tp}) tm tp *)
     | _ -> failwith (sprintf "%s <> %s" (Dom.show_spine sp1) (Dom.show_spine sp2))
 
 and conv_fam name base1 base2 fam1 fam2 = let open ConvMonad in
@@ -85,3 +89,6 @@ and conv_fam name base1 base2 fam1 fam2 = let open ConvMonad in
   let* fam2 = lift_comp @@ Eval.do_clo fam2 v in
   let+ () = conv fam1 fam2 Dom.U in
   ()
+
+
+(* OutS (f x y) == a x y *)

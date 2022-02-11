@@ -139,3 +139,19 @@ struct
           | Some (tp,_) -> tp, Syn.Def x
           | None -> failwith ("unbound variable: "^x)
 end
+
+module Implicit =
+struct
+  open ElabMonad
+  (* Kinda cannot believe how well this works, thanks cooltt devs!! *)
+  let rec intro_singletons (t : chk_tac) : chk_tac = fun goal -> run_chk ~goal @@
+    match Eval.force goal with
+      | Dom.Singleton _ -> Singleton.intro @@ intro_singletons t
+      | _ -> t
+
+  let rec elim_singletons (t : syn_tac) : syn_tac =
+    let* tp,e = run_syn t in
+    match Eval.force tp with
+      | Dom.Singleton _ -> elim_singletons @@ Singleton.elim (ret (tp,e))
+      | _ -> ret (tp,e)
+end

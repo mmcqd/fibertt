@@ -72,12 +72,10 @@ and do_ap f e = let open CompMonad in
 and do_outS e = let open CompMonad in
   match e with
     | Dom.InS e' -> ret e'
-    | Dom.Neu {hd ; sp ; tp} -> 
+    | Dom.Neu {tp ; _} -> 
       begin
       match force tp with
-        | Dom.Singleton {tp ; tm} -> 
-          let+ hd = do_hd do_outS hd in
-          Dom.Neu {hd ; sp = Dom.OutS {tm ; tp} :: sp ; tp}
+        | Dom.Singleton {tm ; _} -> ret tm
         | _ -> failwith "do_outS"
       end
     | _ -> failwith "do_outS"
@@ -123,6 +121,15 @@ and do_hd f = let open CompMonad in function
     let value = Lazy.map ~f:(fun v -> run (f v) global) value in
     Dom.Def {name ; value}
   | hd -> ret hd
+
+
+and do_spine hd : Dom.elim list -> Dom.t comp = let open CompMonad in List.fold_right ~init:(ret hd) ~f:(fun elim sp ->
+  let* sp = sp in 
+  match elim with 
+    | Dom.Ap {tm ; _} -> do_ap sp tm
+    | Dom.OutS _ -> do_outS sp
+    | Dom.Rest -> do_rest sp
+    | Dom.Proj field -> do_proj field sp)
 
 and do_clo : Dom.clo -> Dom.t -> 'a CompMonad.t = fun clo e ->
   CompMonad.lift_eval clo.env @@

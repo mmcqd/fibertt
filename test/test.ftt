@@ -51,18 +51,6 @@ def id (x : Pt) : x.type => x.pt
 
 def const (x : Pt) (y : sig {type : Sub Type x.type ; pt : type}) : x.type => x.pt
 
-
-{-
-
-Point = {type : Type ; el : type}
-Pi = {dom : Type ; cod : dom -> Type ; el : (x : dom) -> cod x}
-Sg = {fst : Type ; snd : fst -> Type ; el : (x : fst) * snd x}
-Id = {param : Type ; left : param ; right : param ; el : Id param left right}
-List = {param : Type ; el : List param}
-
- 
-def id (x : Point) : x.type => x.el
-
-def + : Nat -> Nat -> Nat
-
--}
+def Unit : Type => Sub Bool tt
+def <> : Unit => tt
+def Unit-eta (x : Unit) : Id Unit x <> => \B p => p

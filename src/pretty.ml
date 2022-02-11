@@ -14,8 +14,8 @@ let rec term : Syn.t -> string print = let open PrintMonad in function
     let+ ran = abstract x @@ term ran in
     sprintf "(%s : %s) -> %s" x dom ran
   | Ap (f,e) ->
-    let* f = match f with Lam _ | OutS _ | InS _ -> atom f | _ -> term f in
-    let+ e = match e with Ap _ | Singleton _ | InS _ | OutS _ -> atom e | _ -> term e in
+    let* f = match f with Ap _ -> term f | _ -> atom f in
+    let+ e = atom e in
     sprintf "%s %s" f e
   | InS e -> term e
   | OutS e -> term e
