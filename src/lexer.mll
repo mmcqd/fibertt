@@ -28,6 +28,7 @@ rule initial = parse
   | "=>" | "⇒" { R_EQ_ARROW }
   | "sig" { SIG }
   | "struct" { STRUCT }
+  | "as" { AS }
   | "Type" { TYPE }
   | "Sub" { SUB }
   | "elim" { ELIM }

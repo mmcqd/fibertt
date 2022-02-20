@@ -1,16 +1,14 @@
 open Core
 open Readers
 
-let mk_clo syn : Dom.clo eval =
+let mk_clo tm : 'a Dom.clo eval =
   let open EvalMonad in
   let+ env = read_env in
-  Dom.{syn ; env}
+  Dom.{tm ; env}
 
 let rec eval : Syn.t -> Dom.t eval = let open EvalMonad in function
   | Syn.U -> ret Dom.U
-  | Syn.Idx i ->
-    let+ env = read_env in
-    List.nth_exn env i
+  | Syn.Idx i -> find_idx i
   | Syn.Def name ->
     let+ tp,tm = find_name name in
     Dom.Neu {hd = Def {name ; value = lazy tm} ; sp = [] ; tp}
@@ -34,23 +32,24 @@ let rec eval : Syn.t -> Dom.t eval = let open EvalMonad in function
     let* tm = eval tm in
     let+ tp = eval tp in
     Dom.Singleton {tm ; tp}
-  | Syn.RTyCons (field, tp, rest) ->
-    let+ tp,rest = eval_fam tp rest in
-    Dom.RTyCons (field,tp,rest)
-  | Syn.RTyNil -> ret Dom.RTyNil
-  | Syn.RCons (field,x,xs) -> 
-    let* x = eval x in
-    let+ xs = eval xs in
-    Dom.RCons (field, x, xs)
-  | Syn.RNil -> ret Dom.RNil
+  | Syn.Struct xs -> 
+    let fields,xs = List.unzip xs in
+    let+ xs = sequence @@ List.map ~f:eval xs in
+    Dom.Struct (List.zip_exn fields xs)
   | Syn.Proj (field,r) -> 
     let* r = eval r in
     lift_comp @@ do_proj field r
-  | Syn.Rest r ->
-    let* r = eval r in
-    lift_comp @@ do_rest r
+  | Syn.Sig fields -> 
+    let+ fields = eval_sig fields in
+    Dom.Sig fields
 
-and eval_fam base fam = let open EvalMonad in
+and eval_sig = let open EvalMonad in function
+  | Syn.Nil -> ret Dom.Nil
+  | Syn.Cons (field,tp,sign) -> 
+    let+ (tp,sign) = eval_fam tp sign in
+    Dom.Cons (field,tp,sign)
+    
+and eval_fam : 'a. Syn.t -> 'a -> (Dom.t * 'a Dom.clo) eval = let open EvalMonad in fun base fam ->
   let* base = eval base in
   let+ fam = mk_clo fam in
   (base,fam)
@@ -80,7 +79,31 @@ and do_outS e = let open CompMonad in
       end
     | _ -> failwith "do_outS"
 
-and do_proj field r = let open CompMonad in
+and do_proj field s = let open CompMonad in
+  match s with
+    | Dom.Struct xs -> ret (List.Assoc.find_exn ~equal:String.equal xs field)
+    | Dom.Neu {hd ; sp ; tp} ->
+      begin
+      match force tp with
+        | Dom.Sig fields ->
+          let* hd = do_hd (do_proj field) hd in
+          do_proj_neu hd sp field fields
+        | _ -> failwith (sprintf "do_proj - %s" (Dom.show tp))
+      end
+    | _ -> failwith "do_proj"
+      
+
+and do_proj_neu hd sp field = let open CompMonad in function
+  | Dom.Nil -> failwith "do_proj_neu"
+  | Dom.Cons (field',tp,_) when String.equal field field' -> ret @@ Dom.Neu {hd ; sp = Dom.Proj field :: sp ; tp}
+  | Dom.Cons (field',_,sign) as tp ->
+    let* proj = do_proj_neu hd sp field' tp in
+    let* sign = do_sig_clo sign proj in
+    do_proj_neu hd sp field sign
+
+
+
+(* and do_proj field r = let open CompMonad in
   match r with
     | Dom.RCons (field',x,_) when String.equal field field' -> ret x
     | Dom.RCons (_,_,xs) -> do_proj field xs
@@ -98,22 +121,7 @@ and do_proj_tp field r tp = let open CompMonad in
       let* rest = do_clo rest f in
       do_proj_tp field r rest
     | _ -> failwith "do_proj_tp"
-  
-and do_rest r = let open CompMonad in
-  match r with
-    | Dom.RCons (_,_,xs) -> ret xs
-    | Dom.Neu {hd ; sp ; tp} ->
-      begin
-      match force tp with
-        | Dom.RTyCons (field,_,rest) -> 
-          let* hd = do_hd do_rest hd in
-          let* f = do_proj field r in
-          let+ rest = do_clo rest f in
-          Dom.Neu {hd ; sp = Dom.Rest :: sp ; tp = rest}
-        | _ -> failwith "do_rest"
-      end
-    | _ -> failwith "do_rest"
-      
+   *)
 
 and do_hd f = let open CompMonad in function
   | Dom.Def {name ; value} -> 
@@ -127,15 +135,17 @@ and do_spine hd : Dom.elim list -> Dom.t comp = let open CompMonad in List.fold_
   let* sp = sp in 
   match elim with 
     | Dom.Ap {tm ; _} -> do_ap sp tm
-    | Dom.OutS _ -> do_outS sp
-    | Dom.Rest -> do_rest sp
     | Dom.Proj field -> do_proj field sp)
 
-and do_clo : Dom.clo -> Dom.t -> 'a CompMonad.t = fun clo e ->
+and do_clo : Syn.t Dom.clo -> Dom.t -> Dom.t comp = fun clo e ->
   CompMonad.lift_eval clo.env @@
   EvalMonad.extend e @@
-  eval clo.syn
+  eval clo.tm
 
+and do_sig_clo : Syn.signature Dom.clo -> Dom.t -> Dom.signature comp = fun clo e ->
+  CompMonad.lift_eval clo.env @@
+  EvalMonad.extend e @@
+  eval_sig clo.tm
 
 and force : Dom.t -> Dom.t = function
   | Dom.Neu {hd = Def {value ; _} ; _ } -> force @@ Lazy.force value

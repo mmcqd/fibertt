@@ -9,16 +9,15 @@ type t =
   | Singleton of {tm : t ; tp : tp}
   | InS of t
   | OutS of t
-  | RTyCons of quantifier
-  | RTyNil
-  | RCons of string * t * t
-  | RNil
+  | Sig of signature
+  | Struct of (string * t) list
   | Proj of string * t
-  | Rest of t
   
-
 and tp = t
 
+and signature =
+  | Nil
+  | Cons of string * tp * signature
 
 and quantifier = string * tp * tp
 [@@ deriving show {with_path = false}]

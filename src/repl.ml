@@ -90,11 +90,9 @@ let rec run_cmd : Raw.cmd -> unit cmd = let open CmdMonad in function
     import path
 
 
-and run_cmd_list : Raw.cmd list -> unit cmd = let open CmdMonad in function
-  | [] -> ret ()
-  | cmd :: cmds ->
-    let* () = run_cmd cmd in
-    run_cmd_list cmds
+and run_cmd_list : Raw.cmd list -> unit cmd = fun xs -> let open CmdMonad in 
+  let+ _ = sequence @@ List.map ~f:run_cmd xs in
+  ()
 
 let rec repl : unit -> unit cmd = let open CmdMonad in fun () ->
   print_string "⊢ ";

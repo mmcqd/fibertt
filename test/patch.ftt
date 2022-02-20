@@ -1,0 +1,26 @@
+
+def Bool : Type => (A : Type) -> A -> A -> A
+def tt : Bool => \A t f => t
+def ff : Bool => \A t f => f
+
+def * (A B : Type) : Type => sig {fst : A ; snd : B}
+def test : Type => * Bool Bool as [fst => tt ; snd => ff]
+
+def Point : Type => sig {tp : Type ; pt : tp}
+def Bool-Patch : Type => Point as [tp => Bool]
+def Bool-tt-Patch : Type => Point as [tp => Bool ; pt => tt]
+
+def BB : Type => * Type Type as [fst => Bool ; snd => fst]
+def p : BB => struct {fst => Bool ; snd => Bool}
+
+def id (x : Point) : Point => x
+def const (x : Point) (y : Point) : Point as [tp => x.tp] => struct {tp => x.tp ; pt => x.pt}
+
+def List (A : Type) : Type => (B : Type) -> (A -> B -> B) -> B -> B
+def nil (A : Type) : List A => \B c n => n
+def cons (A : Type) (x : A) (xs : List A) : List A => \B c n => c x (xs B c n)
+
+def ListP : Type => sig { tp : Type ; pt : List tp }
+
+def consP (x : Point) (xs : Point as [tp => List x.tp]) : Point as [tp => List x.tp] => 
+  struct {tp => List x.tp ; pt => \B c n => c x.pt (xs.pt B c n)}

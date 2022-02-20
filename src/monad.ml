@@ -10,6 +10,8 @@ sig
   val (<$>) : ('a -> 'b) -> 'a t -> 'b t
   val (let+) : 'a t -> ('a -> 'b) -> 'b t
   val (and+) : 'a t -> 'b t -> ('a * 'b) t
+
+  val sequence : 'a t list -> 'a list t 
 end
 
 module type Reader =
@@ -38,6 +40,12 @@ struct
   let read = fun l -> l
   let scope f r = fun l -> r (f l)
 
+  let rec sequence = function
+    | [] -> ret []
+    | x :: xs ->
+      let* x = x in
+      let+ xs = sequence xs in
+      x :: xs
   let run = Fun.id
 end
 
@@ -87,6 +95,12 @@ struct
   let set g' = fun _ -> (g',())
   let modify f = fun (g,_) -> (f g, ())
 
+  let rec sequence = function
+    | [] -> ret []
+    | x :: xs ->
+      let* x = x in
+      let+ xs = sequence xs in
+      x :: xs
   let run g l rs = snd @@ rs (g,l)
 end
 

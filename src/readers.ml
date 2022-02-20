@@ -10,6 +10,7 @@ struct
   let lvl_to_idx lvl l = lvl - (l + 1)
   let empty = {env = [] ; tps = [] ; lvl = 0}
   let extend ~name ~tp ~ctx:{env ; tps ; lvl} = {env = Dom.var tp lvl :: env ; tps = (name,(lvl,tp)) :: tps ; lvl = lvl+1}
+  let let_extend ~name ~tp ~tm ~ctx:{env ; tps ; lvl} = {env = tm :: env ; tps = (name, (lvl,tp)) :: tps ; lvl = lvl+1}
 
   let find_idx i ctx : Dom.t = List.nth_exn ctx.env i
    
@@ -154,6 +155,11 @@ struct
     
   let abstract : name:string -> tp:Dom.tp -> (Dom.t -> 'a elab) -> 'a elab = fun ~name ~tp k ->
     locally (fun ctx -> Local_ctx.extend ~name ~tp ~ctx) @@
+    let* v = find_idx 0 in
+    k v
+
+  let let_abstract : name:string -> tp:Dom.tp -> tm:Dom.t -> (Dom.t -> 'a elab) -> 'a elab = fun ~name ~tp ~tm k ->
+    locally (fun ctx -> Local_ctx.let_extend ~name ~tp ~tm ~ctx) @@
     let* v = find_idx 0 in
     k v
 
