@@ -10,11 +10,11 @@ def Point : Type => sig {tp : Type ; pt : tp}
 def Bool-Patch : Type => Point as [tp => Bool]
 def Bool-tt-Patch : Type => Point as [tp => Bool ; pt => tt]
 
-def BB : Type => * Type Type as [fst => Bool ; snd => fst]
+def BB : Type => * Type Type as [fst ; snd => fst]
 def p : BB => struct {fst => Bool ; snd => Bool}
 
 def id (x : Point) : Point => x
-def const (x : Point) (y : Point) : Point as [tp => x.tp] => struct {tp => x.tp ; pt => x.pt}
+def const (x : Point) (y : Point) : Point as [tp => x.tp] => x
 
 def List (A : Type) : Type => (B : Type) -> (A -> B -> B) -> B -> B
 def nil (A : Type) : List A => \B c n => n
@@ -24,3 +24,6 @@ def ListP : Type => sig { tp : Type ; pt : List tp }
 
 def consP (x : Point) (xs : Point as [tp => List x.tp]) : Point as [tp => List x.tp] => 
   struct {tp => List x.tp ; pt => \B c n => c x.pt (xs.pt B c n)}
+
+def test : Type => sig {A : Type ; B : Type ; C : Type} as [A ; B ; C => * A B]
+def test : test => struct {A => Bool ; B => Bool ; C => * Bool Bool}

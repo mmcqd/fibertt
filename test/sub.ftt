@@ -1,0 +1,10 @@
+
+
+def test (A : Type) (B : A -> Type) (f : (x : A) -> B x) : (x : A) -> Sub (B x) (f x) => f
+
+def Sg (A : Type) (B : A -> Type) : Type => sig {fst : A ; snd : B fst}
+
+def test (A : Type) (B : A -> Type) (p : Sg A B) : Sg (Sub A p.fst) \x => Sub (B x) p.snd => p
+
+def testing (Z A : Type) (B : A -> Type) (p : Z -> Sg A B) : (z : Z) -> Sg (Sub A (p z).fst) \_ => Sub (B (p z).fst) (p z).snd => p
+

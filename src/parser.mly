@@ -70,6 +70,10 @@ let sig_elem :=
 let struct_elem :=
   | field = IDENT; R_EQ_ARROW; tp = term; { (field,tp) }
 
+let patch :=
+  | p = struct_elem; { `Patch p }
+  | p = IDENT; { `Var p }
+
 let term := loc(term_)
 let term_ := 
   | atom_
@@ -79,7 +83,7 @@ let term_ :=
   | SUB; tp = atom; tm = atom; { Singleton {tm ; tp} }
   | SIG; LCURLY; fields = separated_list(SEMICOLON,sig_elem); RCURLY; { Sig fields }
   | STRUCT; LCURLY; fields = separated_list(SEMICOLON,struct_elem); RCURLY; { Struct fields }
-  | sign = term; AS; LSQAURE; patches = separated_list(SEMICOLON,struct_elem); RSQUARE; { Patch (sign,patches) }
+  | sign = term; AS; LSQAURE; patches = separated_list(SEMICOLON,patch); RSQUARE; { Patch (sign,patches) }
   | lam_term_
 
 let lam_term := loc(lam_term_)

@@ -6,6 +6,13 @@ let lvl_to_idx (l : int) : int quote = let open QuoteMonad in
   let+ lvl = read_lvl in 
   Local_ctx.lvl_to_idx lvl l
 
+let resolve_fun_name x y =
+  match x,y with
+    | "_","_" -> Fresh.fresh_var ()
+    | "_", y -> y
+    | x, "_" -> x
+    | _ -> y
+
 let rec quote (tm : Dom.t) (tp : Dom.tp) : Syn.t quote = let open QuoteMonad in
   (* printf "QUOTE %s AT %s\n\n" (Dom.show tm) (Dom.show tp); *)
   match Eval.force tp,tm with
@@ -13,13 +20,13 @@ let rec quote (tm : Dom.t) (tp : Dom.tp) : Syn.t quote = let open QuoteMonad in
     | Dom.U, Dom.Pi (x,dom,ran) ->
       let+ (dom_s,ran_s) = quote_fam dom ran in
       Syn.Pi (x,dom_s,ran_s)
-    | Dom.Pi (_,dom,ran), Dom.Lam (y,body) ->
+    | Dom.Pi (x,dom,ran), Dom.Lam (y,body) ->
       let+ body = abstract ~tp:dom @@ fun x -> 
         let* body_tp = lift_comp @@ Eval.do_clo ran x in 
         let* body = lift_comp @@ Eval.do_clo body x in 
         quote body body_tp
       in
-      Syn.Lam (y,body) 
+      Syn.Lam (resolve_fun_name x y,body) 
     | Dom.U, Dom.Singleton {tm ; tp} ->
       let* tm = quote tm tp in
       let+ tp = quote tp Dom.U in

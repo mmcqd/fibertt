@@ -4,7 +4,7 @@ open Parser
 
 }
 
-let ident = [^ '(' ')' '[' ']' '{' '}' '\\' ':' ',' ' ' '\t' '\n' '^' '|' '?' '.' ]+
+let ident = [^ '(' ')' '[' ']' '{' '}' '\\' ':' ',' ' ' '\t' '\n' '^' '|' '?' '.' ';']+
 let whitespace = [' ' '\t' '\r']
 
 rule initial = parse

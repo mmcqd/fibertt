@@ -152,11 +152,11 @@ struct
         go fields
       | _ -> failwith (sprintf "Expected record but found %s" (Dom.show tp))
   
-  let patch (patches : (string * chk_tac) list) (sig_tac : chk_tac) : chk_tac = chk_tac @@ function
+  let patch (patches : [`Patch of string * chk_tac | `Var of string] list) (sig_tac : chk_tac) : chk_tac = chk_tac @@ function
     | Dom.U ->
       let rec go patches sign =
         match patches,sign with
-          | (field,patch) :: patches, Dom.Cons (field',tp,sign) when String.equal field field' -> 
+          | `Patch (field,patch) :: patches, Dom.Cons (field',tp,sign) when String.equal field field' -> 
             let* tm = run_chk ~goal:tp patch in
             let* tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
             let sub = Syn.Singleton {tm ; tp} in
@@ -166,6 +166,12 @@ struct
             let* sign = lift_comp @@ Eval.do_sig_clo sign v in
             let+ sign = go patches sign in
             Syn.Cons (field,sub,sign)
+          | `Var field :: patches, Dom.Cons (field',tp,sign) when String.equal field field' -> 
+            abstract ~name:field ~tp @@ fun v ->
+            let* sign = lift_comp @@ Eval.do_sig_clo sign v in
+            let* tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
+            let+ sign = go patches sign in
+            Syn.Cons (field,tp,sign)
           | [], _ -> lift_quote ~unfold:false @@ Quote.quote_sig sign
           | _ -> failwith "too many patches"
       in      
@@ -180,8 +186,15 @@ struct
       end
     | _ -> failwith "Record.patch"
 
-(* sig {A : Type ; B : Type} as [A => Nat ; B => A] *)
-(* sig {tp : Type ; pt tp} as [tp => Bool ; pt => ] *)
+  let extract_fields = function
+    | Dom.Nil -> []
+    | Dom.Cons (f,_,{tm = sign ; _}) ->
+      let rec go = function
+        | Syn.Nil -> []
+        | Syn.Cons (f,_,sign) -> f :: go sign
+      in
+      f :: go sign
+
 end
 
 
