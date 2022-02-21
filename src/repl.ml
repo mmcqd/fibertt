@@ -98,12 +98,18 @@ let rec repl : unit -> unit cmd = let open CmdMonad in fun () ->
   print_string "⊢ ";
   let txt = Stdlib.read_line () in
   if String.equal txt "" then ignore @@ repl ();
+  try
   let* () = run_cmd_list @@ parse `String txt in
   repl ()
+  with 
+    | ElabMonad.Hole h -> print_endline h; ret ()
 
 let _ : unit = let open CmdMonad in
   let args = Sys.get_argv () in
   if Array.length args = 1 then CmdMonad.run {global = Global_ctx.empty ; imported = []} {importing = []} (repl ());
   let cmds = parse `File args.(1) in
   let go = let* () = run_cmd_list cmds in repl () in
+  try
   CmdMonad.run {global = Global_ctx.empty ; imported = []} {importing = []} go
+  with
+    | ElabMonad.Hole h -> print_endline h

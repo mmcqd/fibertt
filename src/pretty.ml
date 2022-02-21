@@ -65,3 +65,13 @@ and record_ty = let open PrintMonad in function
     sprintf "%s : %s ; %s" field tp rest
 
 let print = term
+
+let rec print_local_ctx_ (tps : (string * Syn.t) list) : string print = let open PrintMonad in
+  match tps with
+    | [] -> ret ""
+    | (v,tp) :: tps -> 
+      let* tp = print tp in
+      let+ tps = abstract v @@ print_local_ctx_ tps in
+      sprintf "%s\n  %s : %s" tps v tp
+
+let print_local_ctx tps = print_local_ctx_ tps []

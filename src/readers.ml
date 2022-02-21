@@ -112,6 +112,9 @@ module ElabMonad =
 struct
   include M.Reader (ElabLocal)
 
+  exception Hole of string
+  exception TypeError of string * Raw.loc
+
   type 'a elab = 'a t
   let read_local : Local_ctx.t elab =
     let+ ctx = read in
@@ -165,6 +168,7 @@ struct
 
   let define : name:string -> tm:Dom.t -> tp:Dom.tp -> 'a elab -> 'a elab = fun ~name ~tm ~tp ->
     globally (fun ctx -> Global_ctx.extend ~name ~tm ~tp ~ctx)
+
 end
 type 'a elab = 'a ElabMonad.t
 

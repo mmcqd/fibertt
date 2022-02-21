@@ -16,6 +16,7 @@ let rec check (tm : Raw.t) : chk_tac = chk_tac @@ fun goal ->
   run_chk ~goal @@
   Implicit.intro_singletons @@
   match tm.con with
+    | Raw.Hole -> Hole.intro
     | Raw.U -> U.formation
     | Raw.Pi ([],ran) -> check ran
     | Raw.Pi (([],_) :: doms,ran) -> check {tm with con = Raw.Pi (doms,ran)}
@@ -26,7 +27,7 @@ let rec check (tm : Raw.t) : chk_tac = chk_tac @@ fun goal ->
     | Raw.Sig fields -> Signature.formation (List.map ~f:(fun (field,tp) -> (field,check tp)) fields)
     | Raw.Struct xs -> Signature.intro (List.map ~f:(fun (field,tp) -> (field,check tp)) xs)
     | Raw.Patch (e,patches) -> Signature.patch (List.map patches ~f:(function `Patch (f,tm) -> `Patch (f,check tm) | `Var x -> `Var x)) (check e) 
-    | Raw.Point e -> Point.intro (synth e)
+    | Raw.Total fam -> Signature.total (synth fam)
     | _ -> 
       (* Needed so that we can retype synthable terms with more specific Singleton types *)
       match goal with
@@ -44,4 +45,5 @@ and synth (tm : Raw.t) : syn_tac =
     | Raw.Ap (f,[]) -> synth f
     | Raw.Ap (f, x :: xs) -> Pi.elim (synth {tm with con = Raw.Ap (f,xs)}) (check x)
     | Raw.Proj (field,r) -> Signature.elim field (synth r)
+    | Raw.Point e -> Point.intro (synth e)
     | _ -> failwith "failed to synth"

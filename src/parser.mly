@@ -11,7 +11,7 @@ open Raw
 %token LAMBDA R_ARROW R_EQ_ARROW
 %token TELE
 %token SUB
-%token SIG STRUCT SEMICOLON DOT AS
+%token SIG STRUCT SEMICOLON DOT AS HASH
 %token TYPE
 %token ELIM BAR FSLASH
 %token DATA
@@ -84,6 +84,7 @@ let term_ :=
   | SIG; LCURLY; fields = separated_list(SEMICOLON,sig_elem); RCURLY; { Sig fields }
   | STRUCT; LCURLY; fields = separated_list(SEMICOLON,struct_elem); RCURLY; { Struct fields }
   | sign = term; AS; LSQAURE; patches = separated_list(SEMICOLON,patch); RSQUARE; { Patch (sign,patches) }
+  | ~ = atom; HASH; <Total>
   | lam_term_
 
 let lam_term := loc(lam_term_)
@@ -96,4 +97,5 @@ let atom_ :=
   | ~ = IDENT; <Var>
   | r = atom; DOT; field = IDENT; { Proj (field,r) }
   | LSQAURE; ~ = term; RSQUARE; <Point>
+  | HOLE; { Hole }
   | paren(term_)

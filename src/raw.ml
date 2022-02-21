@@ -12,6 +12,8 @@ type _t =
   | Proj of string * t
   | Patch of t * [`Patch of string * t | `Var of string] list
   | Point of t
+  | Hole
+  | Total of t
   [@@deriving show {with_path = false}]
 
 and t = {con : _t ; loc : loc}

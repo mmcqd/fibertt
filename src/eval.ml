@@ -64,7 +64,7 @@ and do_ap f e = let open CompMonad in
           let* tp = do_clo ran e in
           let+ hd = do_hd (fun v -> do_ap v e) hd in
           Dom.Neu {hd ; sp = Dom.Ap {tm = e ; tp = dom} :: sp ; tp}
-        | _ -> failwith "do_ap"
+        | _ -> failwith (sprintf "do_ap - expected pi: %s" (Dom.show tp))
       end
     | _ -> failwith "do_ap"
 

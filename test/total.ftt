@@ -1,0 +1,46 @@
+
+def Point : Type => sig {tp : Type ; pt : tp}
+
+def Sum (args : sig {A : Type ; B : Type}) : Type => (C : Type) -> (args.A -> C) -> (args.B -> C) -> C 
+
+def test1 : Type => Sum #
+
+def test2 : Type => Sum # as [A ; B => A]
+
+def inl (A B : Type) (x : A) : Sum (struct {A => A ; B => B}) => \C l r => l x 
+
+
+def inl (x : Point) (B : Type) : Sum # as [A => x.tp] => struct {A => x.tp ; B => B ; fib => \C l r => l x.pt}
+
+
+def Category : Type => sig {
+    Obj : Type ;
+    Hom : sig {o1 : Obj ; o2 : Obj} -> Type ;
+    id : (x : Obj) -> Hom # as [o1 => x ; o2 => x] ;
+    >> : (f : Hom #) (g : Hom # as [o1 => f.o2]) -> Hom # as [o1 => f.o1 ; o2 => g.o2]
+}
+
+{-
+def category : type :=
+  sig (ob : type)
+      (hom : sig (s : ob) (t : ob) → type)
+      (idn : (x : ob) -> hom # [ s .= x | t .= x ])
+      (seq : (f : hom # []) -> (g : hom # [ s .= f.t ]) -> hom # [ s .= f.s | t .= g.t ])
+      (seqL : (f : hom # []) -> path {hom # [ s .= f.s | t .= f.t ]} {seq {idn {f.s}} f} f)
+      (seqR : (f : hom # []) -> path {hom # [ s .= f.s | t .= f.t ]} {seq f {idn {f.t}}} f)
+      (seqA : (f : hom # []) -> (g : hom # [ s .= f.t ]) -> (h : hom # [ s .= g.t ]) -> path {hom # [ s .= f.s | t .= h.t ]} {seq f {seq g h}} {seq {seq f g} h})
+
+#print category
+
+def types : category :=
+  struct (ob : type)
+         (hom : args => {args.s} -> {args.t})
+         (idn : x => struct (s : x) (t : x) (fib : x => x))
+         (seq : f g => struct (s : f.s) (t : g.t) (fib : x => g.fib {f.fib x}))
+         (seqL : f i => f)
+         (seqR : f i => f)
+         (seqA : f g h i => struct (s : f.s) (t : h.t) (fib : x => {h.fib} {{g.fib} {{f.fib} x}}))
+
+
+
+-}

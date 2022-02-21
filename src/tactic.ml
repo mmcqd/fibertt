@@ -184,7 +184,47 @@ struct
           Syn.Sig sign
         | _ -> failwith "patching non-record"
       end
-    | _ -> failwith "Record.patch"
+    | _ -> failwith "Signature.patch"
+
+  let rec sig_append sig1 sig2 =
+    match sig1 with
+      | Syn.Nil -> sig2
+      | Syn.Cons (f,tp,sig1) -> Syn.Cons (f,tp, sig_append sig1 sig2)
+
+  (* List : sig {A : Type} -> Type ==> sig {A : Type ; fib : List struct {A => A}}  *)
+  let total (fam : syn_tac) : chk_tac = chk_tac @@ function
+    | Dom.U -> 
+      let rec mk_total fib acc = function
+        | Dom.Nil -> 
+          let* ap = lift_comp @@ Eval.do_ap fib (Dom.Struct (List.rev acc)) in
+          let+ clo = lift_eval @@ Eval.mk_clo Syn.Nil in
+          Dom.Cons ("fib",ap,clo)
+        | Dom.Cons (field,tp,sign) ->
+          let* sign = abstract ~name:field ~tp @@ fun v -> 
+            let* sign = lift_comp @@ Eval.do_sig_clo sign v in
+            let* sign = mk_total fib ((field,v) :: acc) sign in
+            lift_quote ~unfold:false @@ Quote.quote_sig sign
+          in
+          let+ clo = lift_eval @@ Eval.mk_clo sign in
+          Dom.Cons (field,tp,clo)
+      in
+      let* tp,tm = run_syn fam in
+      let* fib = lift_eval @@ Eval.eval tm in
+      begin
+      match tp with
+        | Dom.Pi (name,Dom.Sig sign,ran) ->
+          let* ran = abstract ~name ~tp:(Dom.Sig sign) @@ fun v -> lift_comp @@ Eval.do_clo ran v in
+          begin
+          match ran with
+            | Dom.U ->       
+              let* total = mk_total fib [] sign in
+              let+ total = lift_quote ~unfold:false @@ Quote.quote_sig total in
+              Syn.Sig total
+            | _ -> failwith "Taking total space of non type family"
+          end
+        | _ -> failwith "taking total space of non sig-indexed type family"
+      end
+    | _ -> failwith "Signature.total"
 
   let extract_fields = function
     | Dom.Nil -> []
@@ -212,21 +252,27 @@ struct
           | None -> failwith ("unbound variable: "^x)
 end
 
+module Hole =
+struct
+  open ElabMonad
+  let intro : chk_tac = fun goal ->
+    let* goal = lift_quote ~unfold:false @@ Quote.quote goal Dom.U in
+    let* goal = lift_print @@ Pretty.print goal in 
+    let* {tps ; _} = read_local in
+    let+ tps = sequence @@ List.map tps ~f:(fun (v,(_,tp)) -> let+ tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in (v,tp)) in
+    let tps = Pretty.print_local_ctx tps in
+    raise (Hole (sprintf "Hole:%s\n\n⊢ %s" tps goal))
+end
+
 module Point =
 struct
   open ElabMonad
 
-  (* let syn (tac : syn_tac) : syn_tac = syn_tac @@
+  let intro (tac : syn_tac) : syn_tac = syn_tac @@
     let* tp,tm = run_syn tac in
     let* tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
     let+ sign = lift_eval @@ Eval.eval @@ Syn.Sig (Syn.Cons ("tp",Syn.U,Syn.Cons ("pt",Syn.Idx 0,Syn.Nil))) in
-    sign, Syn.Struct [("tp",tp) ; ("pt",tm)] *)
+    sign, Syn.Struct [("tp",tp) ; ("pt",tm)]
 
-  let intro (tac : syn_tac) : chk_tac = chk_tac @@ function
-    | Dom.Sig (Cons ("tp",_,{tm = Cons ("pt",_, Nil); _})) ->
-      let* tp,tm = run_syn tac in 
-      let+ tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
-      Syn.Struct [("tp",tp); ("pt",tm)]
-    | _ -> failwith "Point.intro"
 end
  
