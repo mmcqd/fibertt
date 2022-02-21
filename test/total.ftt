@@ -13,12 +13,6 @@ def inl (A B : Type) (x : A) : Sum (struct {A => A ; B => B}) => \C l r => l x
 def inl (x : Point) (B : Type) : Sum # as [A => x.tp] => struct {A => x.tp ; B => B ; fib => \C l r => l x.pt}
 
 
-def Category : Type => sig {
-    Obj : Type ;
-    Hom : sig {o1 : Obj ; o2 : Obj} -> Type ;
-    id : (x : Obj) -> Hom # as [o1 => x ; o2 => x] ;
-    >> : (f : Hom #) (g : Hom # as [o1 => f.o2]) -> Hom # as [o1 => f.o1 ; o2 => g.o2]
-}
 
 {-
 def category : type :=

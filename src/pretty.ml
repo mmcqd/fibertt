@@ -23,9 +23,6 @@ let rec term : Syn.t -> string print = let open PrintMonad in function
     let* tm = atom tm in
     let+ tp = atom tp in
     sprintf "Sub %s %s" tp tm
-  | Struct xs -> 
-    let+ xs = record xs in
-    sprintf "struct {%s}" xs
   | Sig fields -> 
     let+ fields = record_ty fields in
     sprintf "sig {%s}" fields
@@ -40,6 +37,9 @@ and atom : Syn.t -> string print = let open PrintMonad in function
   | Proj (field,e) ->
     let+ e = atom e in
     sprintf "%s.%s" e field
+  | Struct xs -> 
+    let+ xs = record xs in
+    sprintf "{%s}" xs
   | a -> 
     let+ a = term a in
     sprintf "(%s)" a
@@ -70,8 +70,9 @@ let rec print_local_ctx_ (tps : (string * Syn.t) list) : string print = let open
   match tps with
     | [] -> ret ""
     | (v,tp) :: tps -> 
+      print_endline v;
       let* tp = print tp in
       let+ tps = abstract v @@ print_local_ctx_ tps in
-      sprintf "%s\n  %s : %s" tps v tp
+      sprintf "%s : %s\n%s" v tp tps
 
-let print_local_ctx tps = print_local_ctx_ tps []
+let print_local_ctx tps = print_local_ctx_ (List.rev tps) []

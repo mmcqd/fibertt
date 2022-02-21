@@ -1,5 +1,7 @@
-
+import test/point
 
 def Bool : Type => (A : Type) -> A -> A -> A
 def tt : Bool => \A t f => t
 def ff : Bool => \A t f => f
+
+def if (b : Point [tp => Bool]) (x : Point) (y : Point [tp => x.tp]) : Point [tp => x.tp] => [b.pt x.tp x.pt y.pt]

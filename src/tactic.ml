@@ -14,6 +14,12 @@ let syn_tac tac = tac
 let run_syn (t : syn_tac) : (Dom.tp * Syn.t) elab = t
 let run_chk (t : chk_tac) : goal:Dom.tp -> Syn.t elab = fun ~goal -> t goal
 
+let mode_switch (t : syn_tac) : chk_tac = let open ElabMonad in fun goal ->
+  let* synthed,e = run_syn t in
+  (* printf "%s\n=======\n%s\n=======\n%s\n\n" (Dom.show synthed) (Syn.show e) (Dom.show goal); *)
+  let+ () = lift_conv @@ Conv.conv goal synthed Dom.U in
+  e
+
 
 module U = 
 struct
@@ -48,23 +54,14 @@ struct
     let+ tp,e = run_syn e in
     match_goal tp @@ function
       | Dom.Singleton {tp ; _} -> tp, Syn.OutS e
-      | _ -> failwith "Sineleton.elim"
+      | _ -> failwith "Singleton.elim"
 
-end
-module Implicit =
-struct
-  open ElabMonad
-  (* Kinda cannot believe how well this works, thanks cooltt devs!! *)
-  let rec intro_singletons (t : chk_tac) : chk_tac = fun goal -> run_chk ~goal @@ 
-  match_goal goal @@ function
-    | Dom.Singleton _ -> Singleton.intro @@ intro_singletons t
-    | _ -> t
+  let infer : chk_tac = chk_tac @@ function
+    | Dom.Singleton {tm ; tp} ->
+      let+ tm = lift_quote ~unfold:false @@ Quote.quote tm tp in
+      Syn.InS tm
+    | _ -> failwith "Singleton.infer"
 
-  let rec elim_singletons (t : syn_tac) : syn_tac =
-    let* tp,e = run_syn t in
-    match_goal tp @@ function
-      | Dom.Singleton _ -> elim_singletons @@ Singleton.elim (ret (tp,e))
-      | _ -> ret (tp,e)
 end
 
 module Pi =
@@ -141,7 +138,7 @@ struct
     match_goal tp @@ function
       | Dom.Sig fields -> 
         let rec go = function
-          | Dom.Nil -> failwith "Couldn't find field"
+          | Dom.Nil -> failwith (sprintf "Couldn't find field %s" field)
           | Dom.Cons (field',tp,_) when String.equal field field' ->
             ret (tp, Syn.Proj (field,s))
           | Dom.Cons (field' , _, sign) ->
@@ -186,19 +183,33 @@ struct
       end
     | _ -> failwith "Signature.patch"
 
-  let rec sig_append sig1 sig2 =
-    match sig1 with
-      | Syn.Nil -> sig2
-      | Syn.Cons (f,tp,sig1) -> Syn.Cons (f,tp, sig_append sig1 sig2)
+  (* let curry (fam : syn_tac) : syn_tac = syn_tac @@ 
+    let* tp,tm = run_syn fam in
+    let rec go = function
+      | Dom.Pi (x,dom,ran) -> 
+      | _ -> failwith "currying non function"
+    in
+    failwith ""
+ *)
 
-  (* List : sig {A : Type} -> Type ==> sig {A : Type ; fib : List struct {A => A}}  *)
+  let is_sig_indexed_type_fam = function 
+    | Dom.Pi (name,Dom.Sig sign,ran) -> 
+      let+ ran = abstract ~name ~tp:(Dom.Sig sign) @@ fun v -> lift_comp @@ Eval.do_clo ran v in
+      begin
+      match ran with
+        | Dom.U -> Some sign
+        | _ -> None
+      end
+    | _ -> ret None
+
+  (* List : sig {A : Type} -> Type ==> sig {A : Type ; pt : List struct {A => A}}  *)
   let total (fam : syn_tac) : chk_tac = chk_tac @@ function
     | Dom.U -> 
       let rec mk_total fib acc = function
         | Dom.Nil -> 
           let* ap = lift_comp @@ Eval.do_ap fib (Dom.Struct (List.rev acc)) in
           let+ clo = lift_eval @@ Eval.mk_clo Syn.Nil in
-          Dom.Cons ("fib",ap,clo)
+          Dom.Cons ("pt",ap,clo)
         | Dom.Cons (field,tp,sign) ->
           let* sign = abstract ~name:field ~tp @@ fun v -> 
             let* sign = lift_comp @@ Eval.do_sig_clo sign v in
@@ -210,19 +221,14 @@ struct
       in
       let* tp,tm = run_syn fam in
       let* fib = lift_eval @@ Eval.eval tm in
+      let* sign_opt = is_sig_indexed_type_fam tp in
       begin
-      match tp with
-        | Dom.Pi (name,Dom.Sig sign,ran) ->
-          let* ran = abstract ~name ~tp:(Dom.Sig sign) @@ fun v -> lift_comp @@ Eval.do_clo ran v in
-          begin
-          match ran with
-            | Dom.U ->       
-              let* total = mk_total fib [] sign in
+      match sign_opt with
+        | Some sign ->
+          let* total = mk_total fib [] sign in
               let+ total = lift_quote ~unfold:false @@ Quote.quote_sig total in
               Syn.Sig total
-            | _ -> failwith "Taking total space of non type family"
-          end
-        | _ -> failwith "taking total space of non sig-indexed type family"
+        | None -> failwith "Can only take total space of a sig-indexed type family"
       end
     | _ -> failwith "Signature.total"
 
@@ -276,3 +282,32 @@ struct
 
 end
  
+module Implicit =
+struct
+  open ElabMonad
+  (* Kinda cannot believe how well this works, thanks cooltt devs!! *)
+  let rec intro_singletons (t : chk_tac) : chk_tac = fun goal -> run_chk ~goal @@ 
+  match_goal goal @@ function
+    | Dom.Singleton _ -> Singleton.intro @@ intro_singletons t
+    | _ -> t
+
+  let rec elim_singletons (t : syn_tac) : syn_tac =
+    let* tp,e = run_syn t in
+    match_goal tp @@ function
+      | Dom.Singleton _ -> elim_singletons @@ Singleton.elim (ret (tp,e))
+      | _ -> ret (tp,e)
+
+  let intro_conversions (t : syn_tac) : chk_tac = chk_tac @@ fun goal -> 
+    match goal with
+      | Dom.U -> 
+        let* tp, _ = run_syn t in
+        let* sign_opt = Signature.is_sig_indexed_type_fam tp in 
+        begin
+        match sign_opt with
+          | Some _ -> run_chk ~goal:Dom.U @@ Signature.total t
+          | None -> run_chk ~goal:Dom.U @@ mode_switch t
+        end
+      | _ -> run_chk ~goal @@ mode_switch t
+
+
+end

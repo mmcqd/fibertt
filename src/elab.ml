@@ -1,19 +1,13 @@
 open Core
-open Readers
 open Tactic
-open ElabMonad
-
-
-let mode_switch (t : syn_tac) : chk_tac = fun goal ->
-  let* synthed,e = run_syn t in
-  (* printf "%s\n=======\n%s\n=======\n%s\n\n" (Dom.show synthed) (Syn.show e) (Dom.show goal); *)
-  let+ () = lift_conv @@ Conv.conv goal synthed Dom.U in
-  e
 
 
 let rec check (tm : Raw.t) : chk_tac = chk_tac @@ fun goal -> 
   (* printf "CHECK %s AT %s\n\n" (Raw.show tm) (Dom.show goal); *)
   run_chk ~goal @@
+  match tm.con with
+    | Raw.InferSingleton -> Singleton.infer
+    | _ ->
   Implicit.intro_singletons @@
   match tm.con with
     | Raw.Hole -> Hole.intro
@@ -35,7 +29,7 @@ let rec check (tm : Raw.t) : chk_tac = chk_tac @@ fun goal ->
           let x = if String.equal x "_" then Fresh.fresh_var () else x in
           Pi.intro x (check {tm with con = Raw.Ap (tm,[{con = Var x ; loc = tm.loc}])})
         | Dom.Sig sign -> Signature.intro (List.map (Signature.extract_fields sign) ~f:(fun field -> (field,check @@ Raw.{con = Proj (field,tm) ; loc = tm.loc})))
-        | _ -> mode_switch (synth tm)
+        | _ -> Implicit.intro_conversions (synth tm)
 
 and synth (tm : Raw.t) : syn_tac = 
   (* printf "SYNTH %s\n\n" (Raw.show tm); *)

@@ -1,0 +1,9 @@
+
+def Point : Type => sig {tp : Type ; pt : tp}
+def pt (tp : Type) (pt : tp) : Point => {tp ; pt}
+
+def Pi : {dom : Type ; cod : dom -> Type} -> Type =>
+    \args => (x : args.dom) -> args.cod x
+
+def Fun : {dom : Type ; cod : Type} -> Type =>
+    \args => args.dom -> args.cod

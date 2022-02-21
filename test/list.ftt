@@ -1,0 +1,14 @@
+import test/point
+
+def List : sig {tp : Type} -> Type =>
+    \args => (B : Type) -> (args.tp -> B -> B) -> B -> B
+
+def nil (A : Type) : List [tp => A] => 
+    {tp => A ; pt => \B c n => n} 
+
+def cons (x : Point) (xs : List [tp => x.tp]) : List [tp => x.tp] =>
+    {tp => _ ; pt => \B c n => c x.pt (xs.pt B c n)}
+
+def append (xs : List) (ys : List [tp => xs.tp]) : List [tp => xs.tp] =>
+    {tp => _ ; pt => \B c n => xs.pt B c (ys.pt B c n) }
+

@@ -86,7 +86,7 @@ let rec run_cmd : Raw.cmd -> unit cmd = let open CmdMonad in function
     let* cmdLocal = read in
     if List.mem ~equal:String.equal cmdLocal.importing path then failwith (sprintf "Cylcic module dependency: %s" (show_module_deps (path :: cmdLocal.importing)));
     let* () = run_cmd_list @@ parse `File path in
-    printf "import %s" modu;
+    printf "import %s\n\n" modu;
     import path
 
 

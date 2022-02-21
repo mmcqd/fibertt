@@ -14,6 +14,7 @@ type _t =
   | Point of t
   | Hole
   | Total of t
+  | InferSingleton
   [@@deriving show {with_path = false}]
 
 and t = {con : _t ; loc : loc}

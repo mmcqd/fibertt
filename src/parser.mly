@@ -68,10 +68,11 @@ let sig_elem :=
   | field = IDENT; COLON; tp = term; { (field,tp) }
 
 let struct_elem :=
-  | field = IDENT; R_EQ_ARROW; tp = term; { (field,tp) }
+  | field = IDENT; { (field,{con = Var field ; loc = $loc} ) }
+  | field = IDENT; R_EQ_ARROW; tm = term; { (field,tm) }
 
 let patch :=
-  | p = struct_elem; { `Patch p }
+  | field = IDENT; R_EQ_ARROW; tm = term; { `Patch (field,tm) }
   | p = IDENT; { `Var p }
 
 let term := loc(term_)
@@ -82,8 +83,7 @@ let term_ :=
   | doms = tele; R_ARROW; ran = term; { Pi (doms,ran) }
   | SUB; tp = atom; tm = atom; { Singleton {tm ; tp} }
   | SIG; LCURLY; fields = separated_list(SEMICOLON,sig_elem); RCURLY; { Sig fields }
-  | STRUCT; LCURLY; fields = separated_list(SEMICOLON,struct_elem); RCURLY; { Struct fields }
-  | sign = term; AS; LSQAURE; patches = separated_list(SEMICOLON,patch); RSQUARE; { Patch (sign,patches) }
+  | sign = atom; LSQAURE; patches = separated_list(SEMICOLON,patch); RSQUARE; { Patch (sign,patches) }
   | ~ = atom; HASH; <Total>
   | lam_term_
 
@@ -97,5 +97,7 @@ let atom_ :=
   | ~ = IDENT; <Var>
   | r = atom; DOT; field = IDENT; { Proj (field,r) }
   | LSQAURE; ~ = term; RSQUARE; <Point>
+  | LCURLY; fields = separated_list(SEMICOLON,struct_elem); RCURLY; { Struct fields }
   | HOLE; { Hole }
+  | UNDERBAR; { InferSingleton }
   | paren(term_)
