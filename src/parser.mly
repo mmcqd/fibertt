@@ -73,7 +73,7 @@ let struct_elem :=
 
 let patch :=
   | field = IDENT; R_EQ_ARROW; tm = term; { `Patch (field,tm) }
-  | p = IDENT; { `Var p }
+  | p = IDENT; { `Field p }
 
 let term := loc(term_)
 let term_ := 

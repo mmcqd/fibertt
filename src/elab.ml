@@ -4,6 +4,7 @@ open Tactic
 
 let rec check (tm : Raw.t) : chk_tac = chk_tac @@ fun goal -> 
   (* printf "CHECK %s AT %s\n\n" (Raw.show tm) (Dom.show goal); *)
+  Readers.ElabMonad.scope (fun ctx -> {ctx with loc = tm.loc}) @@
   run_chk ~goal @@
   match tm.con with
     | Raw.InferSingleton -> Singleton.infer
@@ -20,7 +21,7 @@ let rec check (tm : Raw.t) : chk_tac = chk_tac @@ fun goal ->
     | Raw.Singleton {tm ; tp} -> Singleton.formation (check tm) (check tp)
     | Raw.Sig fields -> Signature.formation (List.map ~f:(fun (field,tp) -> (field,check tp)) fields)
     | Raw.Struct xs -> Signature.intro (List.map ~f:(fun (field,tp) -> (field,check tp)) xs)
-    | Raw.Patch (e,patches) -> Signature.patch (List.map patches ~f:(function `Patch (f,tm) -> `Patch (f,check tm) | `Var x -> `Var x)) (check e) 
+    | Raw.Patch (e,patches) -> Signature.patch (List.map patches ~f:(function `Patch (f,tm) -> `Patch (f,check tm) | `Field x -> `Field x)) (check e) 
     | Raw.Total fam -> Signature.total (synth fam)
     | _ -> 
       (* Needed so that we can retype synthable terms with more specific Singleton types *)
@@ -33,6 +34,7 @@ let rec check (tm : Raw.t) : chk_tac = chk_tac @@ fun goal ->
 
 and synth (tm : Raw.t) : syn_tac = 
   (* printf "SYNTH %s\n\n" (Raw.show tm); *)
+  Readers.ElabMonad.scope (fun ctx -> {ctx with loc = tm.loc}) @@
   Implicit.elim_singletons @@
   match tm.con with
     | Var x -> Var.intro x

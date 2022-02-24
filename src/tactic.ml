@@ -27,7 +27,7 @@ struct
   
   let formation : chk_tac = chk_tac @@ function
     | Dom.U -> ret Syn.U
-    | _ -> failwith "U.formation"
+    | _ -> fail "Type has type Type"
 
 end
 
@@ -40,7 +40,7 @@ struct
       let* tp_d = lift_eval @@ Eval.eval tp in
       let+ tm = run_chk ~goal:tp_d tm in
       Syn.Singleton {tm ; tp}
-    | _ -> failwith "Singleton.formation"
+    | _ -> fail "Singleton.formation"
   
   let intro (e : chk_tac) : chk_tac = chk_tac @@ function
     | Dom.Singleton {tm ; tp} -> 
@@ -48,19 +48,19 @@ struct
       let* e_d = lift_eval @@ Eval.eval e in
       let+ () = lift_conv @@ Conv.conv e_d tm tp in
       Syn.InS e
-    | _ -> failwith "Singleton.intro"
+    | _ -> fail "Singleton.intro"
   
   let elim (e : syn_tac) : syn_tac =
-    let+ tp,e = run_syn e in
+    let* tp,e = run_syn e in
     match_goal tp @@ function
-      | Dom.Singleton {tp ; _} -> tp, Syn.OutS e
-      | _ -> failwith "Singleton.elim"
+      | Dom.Singleton {tp ; _} -> ret (tp, Syn.OutS e)
+      | _ -> fail "Singleton.elim"
 
   let infer : chk_tac = chk_tac @@ function
     | Dom.Singleton {tm ; tp} ->
       let+ tm = lift_quote ~unfold:false @@ Quote.quote tm tp in
       Syn.InS tm
-    | _ -> failwith "Singleton.infer"
+    | _ -> fail "Singleton.infer"
 
 end
 
@@ -73,7 +73,7 @@ struct
       let* dom_d = lift_eval @@ Eval.eval dom_s in
       let+ ran_s = abstract ~name:x ~tp:dom_d @@ fun _ -> run_chk ~goal:Dom.U ran in
       Syn.Pi (x,dom_s,ran_s)
-    | _ -> failwith "Pi.formation"
+    | _ -> fail "Pi.formation"
 
 
   let intro (x : string) (body : chk_tac) : chk_tac = chk_tac @@ function
@@ -83,7 +83,7 @@ struct
         run_chk ~goal:body_tp body
       in
       Syn.Lam (x,body)
-    | _ -> failwith "Pi.intro"
+    | _ -> fail "Pi.intro"
 
   let elim (f : syn_tac) (e : chk_tac) : syn_tac =
     let* tp,f = run_syn f in
@@ -93,7 +93,7 @@ struct
         let* e_dom = lift_eval @@ Eval.eval e in
         let+ tp = lift_comp @@ Eval.do_clo ran e_dom in
         tp,Syn.Ap (f,e)
-      | _ -> failwith "Pi.elim"
+      | _ -> fail "Pi.elim"
 end
 
 module Signature =
@@ -113,24 +113,35 @@ struct
       in
       let+ fields = go fields in
       Syn.Sig fields
-    | _ -> failwith "Signature.formation"
+    | _ -> fail "Signature.formation"
 
   let intro xs = chk_tac @@ function
     | Dom.Sig sign ->
       let rec go fields xs =
         match fields,xs with
           | Dom.Nil, [] -> ret []
-          | Dom.Cons (field,tp,sign), (field', tac) :: xs when String.equal field field' -> 
+          | Dom.Cons (field,tp,sign), (field', tac) :: xs -> 
+            let* tac,xs = match tp,String.equal field field' with
+              | _, true -> ret (tac,xs) 
+              | Dom.Singleton _,false -> ret (Singleton.infer , (field',tac)::xs)
+              | _ -> fail "Missing record field"
+            in
             let* x = run_chk ~goal:tp tac in
             let* x_d = lift_eval @@ Eval.eval x in
             let* fields = lift_comp @@ Eval.do_sig_clo sign x_d in
             let+ xs = go fields xs in
             (field,x) :: xs
-          | _ -> failwith "Signature.intro"
+          | Dom.Cons (field,(Dom.Singleton _ as tp),sign), [] ->
+            let* x = run_chk ~goal:tp Singleton.infer in
+            let* x_d = lift_eval @@ Eval.eval x in
+            let* fields = lift_comp @@ Eval.do_sig_clo sign x_d in
+            let+ xs = go fields xs in
+            (field,x) :: xs
+          | _ -> fail "Signature.intro"
       in 
       let+ xs = go sign xs in
       Syn.Struct xs
-    | _ -> failwith "Signature.intro"
+    | _ -> fail "Signature.intro"
 
   let elim (field : string) (s : syn_tac) : syn_tac =
     let* tp,s = run_syn s in
@@ -138,7 +149,7 @@ struct
     match_goal tp @@ function
       | Dom.Sig fields -> 
         let rec go = function
-          | Dom.Nil -> failwith (sprintf "Couldn't find field %s" field)
+          | Dom.Nil -> fail (sprintf "Couldn't find field %s" field)
           | Dom.Cons (field',tp,_) when String.equal field field' ->
             ret (tp, Syn.Proj (field,s))
           | Dom.Cons (field' , _, sign) ->
@@ -147,9 +158,9 @@ struct
             go sign
         in
         go fields
-      | _ -> failwith (sprintf "Expected record but found %s" (Dom.show tp))
+      | _ -> fail (sprintf "Expected record but found %s" (Dom.show tp))
   
-  let patch (patches : [`Patch of string * chk_tac | `Var of string] list) (sig_tac : chk_tac) : chk_tac = chk_tac @@ function
+  let patch (patches : [`Patch of string * chk_tac | `Field of string] list) (sig_tac : chk_tac) : chk_tac = chk_tac @@ function
     | Dom.U ->
       let rec go patches sign =
         match patches,sign with
@@ -163,14 +174,14 @@ struct
             let* sign = lift_comp @@ Eval.do_sig_clo sign v in
             let+ sign = go patches sign in
             Syn.Cons (field,sub,sign)
-          | `Var field :: patches, Dom.Cons (field',tp,sign) when String.equal field field' -> 
+          | `Field field :: patches, Dom.Cons (field',tp,sign) when String.equal field field' -> 
             abstract ~name:field ~tp @@ fun v ->
             let* sign = lift_comp @@ Eval.do_sig_clo sign v in
             let* tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
             let+ sign = go patches sign in
             Syn.Cons (field,tp,sign)
           | [], _ -> lift_quote ~unfold:false @@ Quote.quote_sig sign
-          | _ -> failwith "too many patches"
+          | _ -> fail "too many patches"
       in      
       let* sign = run_chk ~goal:Dom.U sig_tac in
       let* sign_d = lift_eval @@ Eval.eval sign in
@@ -179,18 +190,37 @@ struct
         | Dom.Sig sign -> 
           let+ sign = go patches sign in
           Syn.Sig sign
-        | _ -> failwith "patching non-record"
+        | _ -> fail "patching non-record"
       end
-    | _ -> failwith "Signature.patch"
+    | _ -> fail "Signature.patch"
 
   (* let curry (fam : syn_tac) : syn_tac = syn_tac @@ 
     let* tp,tm = run_syn fam in
     let rec go = function
       | Dom.Pi (x,dom,ran) -> 
-      | _ -> failwith "currying non function"
+      | _ -> fail "currying non function"
     in
-    failwith ""
+    fail ""
  *)
+(* 
+  let uncurry (tac : chk_tac) : chk_tac = chk_tac @@ function
+    | Dom.U ->
+      let* tp = run_chk ~goal:Dom.U tac in
+      let* tp_d = lift_eval @@ Eval.eval tp in
+      let rec go = function
+        | Dom.Pi (name,dom,ran) -> 
+          let* ran = abstract ~name ~tp:dom @@ fun v -> lift_comp @@ Eval.do_clo ran v in
+          let* sign,tp = go ran in
+          let* sign = lift_quote ~unfold:false @@ Quote.quote_sig sign in
+          let+ sign = lift_eval @@ Eval.mk_clo sign in
+          Dom.Cons (name,dom,sign),tp
+        | tp -> 
+          let+ tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
+          Dom.Nil,tp
+      in
+      let+ dom,ran = go tp_d in
+
+    | _ -> fail "uncurry" *)
 
   let is_sig_indexed_type_fam = function 
     | Dom.Pi (name,Dom.Sig sign,ran) -> 
@@ -228,9 +258,9 @@ struct
           let* total = mk_total fib [] sign in
               let+ total = lift_quote ~unfold:false @@ Quote.quote_sig total in
               Syn.Sig total
-        | None -> failwith "Can only take total space of a sig-indexed type family"
+        | None -> fail "Can only take total space of a sig-indexed type family"
       end
-    | _ -> failwith "Signature.total"
+    | _ -> fail "Signature.total"
 
   let extract_fields = function
     | Dom.Nil -> []
@@ -240,6 +270,22 @@ struct
         | Syn.Cons (f,_,sign) -> f :: go sign
       in
       f :: go sign
+  
+
+  (* let fill_sig (pt_tac : chk_tac) : chk_tac = chk_tac @@ function
+    | Dom.Sig sign -> 
+      let rec go = function 
+        | Dom.Nil -> fail "filling signature without pt"
+        | Dom.Cons (field,tp,sign) ->
+          let* tm = if String.equal field "pt" then run_chk ~goal:tp pt_tac else run_chk ~goal:tp Singleton.infer in
+          let* tm_d = lift_eval @@ Eval.eval tm in
+          let* sign = lift_comp @@ Eval.do_sig_clo sign tm_d in
+          let+ sign = go sign in 
+          (field,tm) :: sign
+      in
+      let+ xs = go sign in
+      Syn.Struct xs
+    | _ -> fail "filling non-sig" *)
 
 end
 
@@ -249,13 +295,13 @@ struct
   open ElabMonad
   let intro (x : string) : syn_tac =
     let* ctx = read_local in
-    let+ global = read_global in
+    let* global = read_global in
     match Local_ctx.find_tp_and_idx x ctx with
-      | Some (i,tp) -> tp, Syn.Idx i
+      | Some (i,tp) -> ret (tp, Syn.Idx i)
       | None -> 
         match Global_ctx.find_name ~name:x ~ctx:global with
-          | Some (tp,_) -> tp, Syn.Def x
-          | None -> failwith ("unbound variable: "^x)
+          | Some (tp,_) -> ret (tp, Syn.Def x)
+          | None -> fail ("unbound variable: "^x)
 end
 
 module Hole =
@@ -296,6 +342,9 @@ struct
     match_goal tp @@ function
       | Dom.Singleton _ -> elim_singletons @@ Singleton.elim (ret (tp,e))
       | _ -> ret (tp,e)
+(* 
+  let intro_point (t : chk_tac) : chk_tac = chk_tac @@ function
+    |  *)
 
   let intro_conversions (t : syn_tac) : chk_tac = chk_tac @@ fun goal -> 
     match goal with

@@ -54,7 +54,7 @@ let rec show_module_deps = function
 
 let rec run_cmd : Raw.cmd -> unit cmd = let open CmdMonad in function
   | Raw.Eval tm ->
-    let* tp,tm = lift_elab @@ Tactic.run_syn @@ Elab.synth tm in
+    let* tp,tm = lift_elab tm.loc @@ Tactic.run_syn @@ Elab.synth tm in
     let* tm_d = lift_eval @@ Eval.eval tm in
     let* tm_s = lift_quote ~unfold:true @@ Quote.quote tm_d tp in
     let* tp = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
@@ -63,16 +63,16 @@ let rec run_cmd : Raw.cmd -> unit cmd = let open CmdMonad in function
     printf "- : %s\n\n" pp_tp;
     printf "- = %s\n\n" pp_tm
   | Raw.Def {name ; tm} ->
-    let* tp,tm = lift_elab @@ Tactic.run_syn @@ Elab.synth tm in
+    let* tp,tm = lift_elab tm.loc @@ Tactic.run_syn @@ Elab.synth tm in
     let* tm = lift_eval @@ Eval.eval tm in
     let* tp_s = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
     let* pp_tp = lift_print @@ Pretty.print tp_s in
     printf "def %s : %s\n\n" name pp_tp; 
     define ~name ~tm ~tp
   | Raw.DefChk {name ; tm ; tp} ->
-    let* tp = lift_elab @@ Tactic.run_chk ~goal:Dom.U (Elab.check tp) in
+    let* tp = lift_elab tp.loc @@ Tactic.run_chk ~goal:Dom.U (Elab.check tp) in
     let* tp_d = lift_eval @@ Eval.eval tp in 
-    let* tm = lift_elab @@ Tactic.run_chk ~goal:tp_d (Elab.check tm) in
+    let* tm = lift_elab tm.loc @@ Tactic.run_chk ~goal:tp_d (Elab.check tm) in
     let* tm_d = lift_eval @@ Eval.eval tm in
     let* pp_tp = lift_print @@ Pretty.print tp in
     printf "def %s : %s\n\n" name pp_tp; 
@@ -95,21 +95,23 @@ and run_cmd_list : Raw.cmd list -> unit cmd = fun xs -> let open CmdMonad in
   ()
 
 let rec repl : unit -> unit cmd = let open CmdMonad in fun () ->
+  try
   print_string "⊢ ";
   let txt = Stdlib.read_line () in
   if String.equal txt "" then ignore @@ repl ();
-  try
   let* () = run_cmd_list @@ parse `String txt in
   repl ()
   with 
     | ElabMonad.Hole h -> print_endline h; ret ()
+    | ElabMonad.Error e -> printf "Elaboration Error:\n%s" e; repl ()
 
 let _ : unit = let open CmdMonad in
   let args = Sys.get_argv () in
+  try
   if Array.length args = 1 then CmdMonad.run {global = Global_ctx.empty ; imported = []} {importing = []} (repl ());
   let cmds = parse `File args.(1) in
   let go = let* () = run_cmd_list cmds in repl () in
-  try
   CmdMonad.run {global = Global_ctx.empty ; imported = []} {importing = []} go
   with
     | ElabMonad.Hole h -> print_endline h
+    | ElabMonad.Error e -> printf "Elaboration Error:\n%s" e

@@ -4,8 +4,8 @@ def Id : sig {tp : Type ; l : tp ; r : tp} -> Type =>
     \args => (B : args.tp -> Type) -> B args.l -> B args.r
 
 def refl (A : Type) (x : A) : Id [tp => A ; l => x ; r => x] => 
-    {tp => _ ; l => _ ; r => _ ; pt => \B p => p}
+    {pt => \B p => p}
 
 
 def sym (p : Id) : Id [tp => p.tp ; l => p.r ; r => p.l] =>
-    {tp => _ ; l => _ ; r => _ ; pt => p.pt (\y => Id {tp => p.tp ; l => y ; r => p.l}) (\B p => p) }
+    {pt => p.pt (\y => Id {tp => p.tp ; l => y ; r => p.l}) (\B p => p)}

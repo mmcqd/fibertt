@@ -13,8 +13,8 @@ def Category : Type => sig {
 def Types : Category => {
     Obj => Type ;
     Hom => \args => args.o1 -> args.o2 ;
-    idn => \x => {o1 => _ ; o2 => _ ; pt => \x => x} ;
-    seq => \f g => {o1 => _ ; o2 => _ ; pt => \x => g.pt (f.pt x)} ;
+    idn => \x => {pt => \x => x} ;
+    seq => \f g => {pt => \x => g.pt (f.pt x)} ;
     seqL => \f => \B p => p ;
     seqR => \f => \B p => p ;
     seqA => \f g h => \B p => p

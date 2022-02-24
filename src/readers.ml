@@ -24,11 +24,11 @@ end
 module Global_ctx =
 struct
   (* tp,tm *)
-  type t = {ctx : (string * (Dom.t * Dom.t)) list ; meta_ctx : (Dom.t * Dom.t option) Int.Map.t [@opaque]}
+  type t = {ctx : (string * (Dom.t * Dom.t)) list}
   [@@deriving show]
 
-  let empty = {ctx = [] ; meta_ctx = Int.Map.empty}
-  let extend ~name ~tm ~tp ~ctx = {ctx with ctx = (name, (tp,tm)) :: ctx.ctx}
+  let empty = {ctx = []}
+  let extend ~name ~tm ~tp ~ctx = {ctx = (name, (tp,tm)) :: ctx.ctx}
 
 
   let find_name ~name ~ctx = List.Assoc.find ~equal:String.equal ctx.ctx name
@@ -48,7 +48,7 @@ end
 
 module ElabLocal =
 struct
-  type local = {local : Local_ctx.t ; global : Global_ctx.t}
+  type local = {local : Local_ctx.t ; global : Global_ctx.t ; loc : Raw.loc}
 end
 
 module EvalLocal =
@@ -98,10 +98,6 @@ struct
     let+ global = read in 
     global.ctx
   
-  let read_meta_ctx =
-    let+ global = read in
-    global.meta_ctx
-    
   let lift_eval = fun env ev ->
     let+ global = read in
     ev EvalLocal.{global ; env}
@@ -113,7 +109,7 @@ struct
   include M.Reader (ElabLocal)
 
   exception Hole of string
-  exception TypeError of string * Raw.loc
+  exception Error of string
 
   type 'a elab = 'a t
   let read_local : Local_ctx.t elab =
@@ -149,6 +145,11 @@ struct
     let+ ctx = read in
     cnv {lvl = ctx.local.lvl ; global = ctx.global ; names = List.map ~f:fst ctx.local.tps}
 
+
+  let fail (err : string) =
+    let* ctx = read in
+    let err = err ^ "\n" ^ Raw.show_loc_code ctx.loc in
+    raise (Error err)
 
   let locally : (Local_ctx.t -> Local_ctx.t) -> 'a elab  -> 'a elab = fun f ->
     scope (fun ctx -> {ctx with local = f ctx.local})
@@ -270,9 +271,9 @@ struct
   let lift_print : 'a print -> 'a cmd = fun p ->
     ret @@ PrintMonad.run p []
 
-  let lift_elab : 'a elab -> 'a cmd = fun e ->
+  let lift_elab : Raw.loc -> 'a elab -> 'a cmd = fun loc e ->
     let+ state = get in
-    ElabMonad.run e {global = state.global ; local = Local_ctx.empty} 
+    ElabMonad.run e {global = state.global ; local = Local_ctx.empty ; loc} 
 
   let lift_quote : unfold:bool -> 'a quote -> 'a cmd = fun ~unfold q ->
     let+ state = get in

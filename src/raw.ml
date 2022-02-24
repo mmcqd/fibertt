@@ -10,7 +10,7 @@ type _t =
   | Sig of (string * t) list
   | Struct of (string * t) list
   | Proj of string * t
-  | Patch of t * [`Patch of string * t | `Var of string] list
+  | Patch of t * [`Patch of string * t | `Field of string] list
   | Point of t
   | Hole
   | Total of t

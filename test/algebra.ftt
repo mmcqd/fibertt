@@ -1,0 +1,19 @@
+
+
+ 
+
+{-
+def Monoid : Type => sig {
+    C : Type ;
+    * : C -> C -> C ;
+    e : C ;
+    idL : (x : C) -> * x e = x ;
+    idR : (x : C) -> * e x = x ;
+    assoc : (x y z : C) -> * x (* y z) = * (* x y) z 
+}
+
+
+def <> {A} {{M : Monoid [C => A]}} (x y : A) : A => M.* x y
+
+
+-}
