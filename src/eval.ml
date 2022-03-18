@@ -102,31 +102,10 @@ and do_proj_neu hd sp field = let open CompMonad in function
     do_proj_neu hd sp field sign
 
 
-
-(* and do_proj field r = let open CompMonad in
-  match r with
-    | Dom.RCons (field',x,_) when String.equal field field' -> ret x
-    | Dom.RCons (_,_,xs) -> do_proj field xs
-    | Dom.Neu {hd ; sp ; tp} ->
-      let* tp = do_proj_tp field r tp in
-      let+ hd = do_hd (do_proj field) hd in
-      Dom.Neu {hd ; sp = Dom.Proj field :: sp ; tp}
-    | _ -> failwith "do_proj"
-
-and do_proj_tp field r tp = let open CompMonad in
-  match force tp with
-    | Dom.RTyCons (field',tp,_) when String.equal field field' -> ret tp
-    | Dom.RTyCons (field',_,rest) -> 
-      let* f = do_proj field' r in
-      let* rest = do_clo rest f in
-      do_proj_tp field r rest
-    | _ -> failwith "do_proj_tp"
-   *)
-
 and do_hd f = let open CompMonad in function
   | Dom.Def {name ; value} -> 
     let+ global = CompMonad.read in  
-    let value = Lazy.map ~f:(fun v -> run (f v) global) value in
+    let value = Lazy.map ~f:(fun v -> run_exn (f v) global) value in
     Dom.Def {name ; value}
   | hd -> ret hd
 
@@ -142,6 +121,11 @@ and do_clo : Syn.t Dom.clo -> Dom.t -> Dom.t comp = fun clo e ->
   EvalMonad.extend e @@
   eval clo.tm
 
+and do_multi_clo : Syn.t Dom.clo -> Dom.t list -> Dom.t comp = fun clo es ->
+  CompMonad.lift_eval clo.env @@ 
+  EvalMonad.multi_extend es @@
+  eval clo.tm
+
 and do_sig_clo : Syn.signature Dom.clo -> Dom.t -> Dom.signature comp = fun clo e ->
   CompMonad.lift_eval clo.env @@
   EvalMonad.extend e @@
@@ -150,3 +134,15 @@ and do_sig_clo : Syn.signature Dom.clo -> Dom.t -> Dom.signature comp = fun clo 
 and force : Dom.t -> Dom.t = function
   | Dom.Neu {hd = Def {value ; _} ; _ } -> force @@ Lazy.force value
   | d -> d
+
+
+
+(* 
+  
+x : sig {A : Type ; B : Type}
+
+split x at x y => ...with
+  | (x,y) => ...
+
+  
+*)

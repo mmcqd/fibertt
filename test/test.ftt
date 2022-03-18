@@ -1,82 +1,8 @@
+import test/point
 
-def Id (A : Type) (x y : A) : Type => (B : A -> Type) -> B x -> B y
-def refl (A : Type) (x : A) : Id A x x => \B p => p
+def Twin : Type => sig {0 : Point ; 1 : Point [tp => 0.tp]}
+def Quad : Type => sig {A : Twin ; B : Twin [0 [tp => A.0.tp] ; 1 [tp => A.1.tp]]}
 
-def Bool : Type => (A : Type) -> A -> A -> A
-def tt : Bool => \A t f => t
-def ff : Bool => \A t f => f
+def test (t : Twin [0 [tp => Type]]) (f : Sub Type Type -> Type) : Type => f t.1.tp
 
-def Nat : Type => (A : Type) -> (A -> A) -> A -> A
-def zero : Nat => \A s z => z
-def suc (n : Nat) : Nat => \A s z => s (n A s z)
-
-
-def not (x : Bool) : Bool => x Bool ff tt 
-
-def test : Id Bool (not ff) tt => \B p => p
-
-def test : Sub Bool tt => not ff
-
-
-
-def + (n m : Nat) : Nat => n Nat suc m
-
-def test : Sub Nat (+ (suc zero) (suc zero)) => suc (suc zero)
-
-def x : Sub Bool tt => tt
-
-def f (A : Type) (g : A -> A) : (x : A) -> Sub A (g x) => \x => g x
-
-def test (A : Type) (x : A) (p : Sub A x) : Id A p x => \B p => p
-
-
-
-def & (A B : Type) : Type => sig {fst : A ; snd : B}
-def fst (A B : Type) (p : & A B) : A => p.fst
-def snd (A B : Type) (p : & A B) : B => p.snd
-
-def p : & Nat Bool => struct {fst => zero ; snd => tt}
-
-def Point : Type => sig {tp : Type ; pt : tp}
-def x : Point => struct { tp => Bool ; pt => tt }
-
-
-def Sg (A : Type) (B : A -> Type) : Type => sig {fst : A ; snd : B fst}
-def fst (A : Type) (B : A -> Type) (p : Sg A B) : A => p.fst
-def snd (A : Type) (B : A -> Type) (p : Sg A B) : B p.fst => p.snd
-
-
-def p : Sg Bool \b => Id Bool b tt => struct {fst => tt ; snd => \B p => p}
-
--- def Sg-Eta (A : Type) (B : A -> Type) (p : Sg A B) : Id (Sg A B) p (struct {fst => p.fst ; snd => p.snd}) => \B p => p
-
-def Pt : Type => sig {type : Type ; pt : type}
-def mkPt (A : Type) (x : A) : Pt => struct {type => A ; pt => x}
-
-def id (x : Pt) : x.type => x.pt
-
-def const (x : Pt) (y : sig {type : Sub Type x.type ; pt : type}) : x.type => x.pt
-
-def Unit : Type => Sub Bool tt
-def <> : Unit => tt
-def Unit-eta (x : Unit) : Id Unit x <> => \B p => p
-
-def Iso (A B : Type) : Type => sig {
-    f : A -> B ;
-    g : B -> A ;
-    fg : (x : B) -> Id B (f (g x)) x ;
-    gf : (x : A) -> Id A (g (f x)) x
-}
-
-def Iso/Sub (A B : Type) (x : A) (y : B) : Iso (Sub A x) (Sub B y) => struct {
-    f => \_ => y ;
-    g => \_ => x ;
-    fg => \_ => \B p => p ;
-    gf => \_ => \B p => p
-}
-
-def ListF (A : Type) : Type => (B : Type) -> (A -> B -> B) -> B -> B
-def nilF (A : Type) : ListF A => \B c n => n
-def consF (A : Type) (x : A) (xs : ListF A) : ListF A => \B c n => c x (xs B c n)
-
-def id : Point -> Point => \x => x
+def test (t : Twin [0 [tp => Twin [0 [tp => Type]]]]) (f : Sub Type Type -> Type) : Type => f 0.pt.0.tp

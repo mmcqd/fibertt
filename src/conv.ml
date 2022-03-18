@@ -26,10 +26,12 @@ let rec conv (tm1 : Dom.t) (tm2 : Dom.t) (tp : Dom.tp) : unit conv = let open Co
       conv e1 e2 tp
     | Dom.U, Dom.Sig sign1, Dom.Sig sign2 -> conv_sig sign1 sign2
     | Dom.Sig fields, s1, s2 -> conv_struct fields s1 s2
+    (* | _,Dom.Neu {tp = Dom.Singleton {tm ; _} ; _},_ -> conv tm tm2 tp
+    | _,_,Dom.Neu {tp = Dom.Singleton {tm ; _} ; _} -> conv tm1 tm tp *)
     | _, Dom.Neu n1, Dom.Neu n2 -> 
       conv_spine n1.hd n2.hd n1.sp n2.sp
     | _ -> 
-      failwith (sprintf "%s <> %s : %s" (Dom.show tm1) (Dom.show tm2) (Dom.show tp))
+      fail @@ Error (sprintf "%s <> %s : %s" (Dom.show tm1) (Dom.show tm2) (Dom.show tp))
 
 and conv_sig sign1 sign2 = let open ConvMonad in 
   match sign1,sign2 with
@@ -42,7 +44,7 @@ and conv_sig sign1 sign2 = let open ConvMonad in
         conv_sig sign1 sign2
       in
       ()
-    | _ -> failwith "mismatched signatures"
+    | _ -> fail @@ Error "mismatched signatures"
 
 and conv_struct fields s1 s2 = let open ConvMonad in
   match fields with
@@ -57,7 +59,7 @@ and conv_struct fields s1 s2 = let open ConvMonad in
 and conv_hd hd1 hd2 = let open ConvMonad in
   match hd1, hd2 with
     | Dom.Lvl l1, Dom.Lvl l2 when Int.equal l1 l2 -> ret ()
-    | _ -> failwith (sprintf "%s <> %s" (Dom.show_head hd1) (Dom.show_head hd2))
+    | _ -> fail @@ Error (sprintf "%s <> %s" (Dom.show_head hd1) (Dom.show_head hd2))
   
 and conv_spine hd1 hd2 sp1 sp2 = let open ConvMonad in 
   match sp1, sp2 with
@@ -67,7 +69,7 @@ and conv_spine hd1 hd2 sp1 sp2 = let open ConvMonad in
       conv_spine hd1 hd2 sp1 sp2
     | Dom.Proj field1 :: sp1, Dom.Proj field2 :: sp2 when String.equal field1 field2 ->
       conv_spine hd1 hd2 sp1 sp2
-    | _ -> failwith (sprintf "%s <> %s" (Dom.show_spine sp1) (Dom.show_spine sp2))
+    | _ -> fail @@ Error (sprintf "%s <> %s" (Dom.show_spine sp1) (Dom.show_spine sp2))
 
 and conv_fam name base1 base2 fam1 fam2 = let open ConvMonad in
   let* () = conv base1 base2 Dom.U in

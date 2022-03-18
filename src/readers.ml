@@ -98,8 +98,7 @@ struct
     let+ global = read in 
     global.ctx
   
-  let lift_eval = fun env ev ->
-    let+ global = read in
+  let lift_eval = fun env ev global ->
     ev EvalLocal.{global ; env}
 end
 type 'a comp = 'a CompMonad.t
@@ -123,33 +122,21 @@ struct
     let+ ctx = read_local in
     Local_ctx.find_idx idx ctx
 
-  let lift_print : 'a print -> 'a elab = fun p ->
-    let+ ctx = read_local in
-    PrintMonad.run p (List.map ~f:fst ctx.tps)
+  let lift_print : 'a print -> 'a elab = fun p ctx ->
+    p (List.map ~f:fst ctx.local.tps)
 
-  let lift_comp : 'a comp -> 'a elab = fun c -> 
-    CompMonad.run c <$> read_global
+  let lift_comp : 'a comp -> 'a elab = fun c ctx -> 
+    c ctx.global
 
-  let lift_eval : (EvalLocal.local -> 'a) -> 'a elab = fun ev ->
-    let* global = read_global in
-    let+ ctx = read_local in
-    ev {env = ctx.env ; global}
+  let lift_eval : (EvalLocal.local -> ('a,exn) result) -> 'a elab = fun ev {global ; local ; _} -> 
+    ev {env = local.env ; global}
 
-  let lift_quote : unfold:bool -> (QuoteLocal.local -> 'a) -> 'a elab = fun ~unfold q ->
-    let* global = read_global in
-    let+ local = read_local in
+  let lift_quote : unfold:bool -> (QuoteLocal.local -> ('a,exn) result) -> 'a elab = fun ~unfold q {global ; local ; _} ->
     q {global ; lvl = local.lvl ; unfold}
 
 
-  let lift_conv : (ConvLocal.local -> 'a) -> 'a elab = fun cnv ->
-    let+ ctx = read in
+  let lift_conv : (ConvLocal.local -> ('a,exn) result) -> 'a elab = fun cnv ctx ->
     cnv {lvl = ctx.local.lvl ; global = ctx.global ; names = List.map ~f:fst ctx.local.tps}
-
-
-  let fail (err : string) =
-    let* ctx = read in
-    let err = err ^ "\n" ^ Raw.show_loc_code ctx.loc in
-    raise (Error err)
 
   let locally : (Local_ctx.t -> Local_ctx.t) -> 'a elab  -> 'a elab = fun f ->
     scope (fun ctx -> {ctx with local = f ctx.local})
@@ -169,6 +156,15 @@ struct
 
   let define : name:string -> tm:Dom.t -> tp:Dom.tp -> 'a elab -> 'a elab = fun ~name ~tm ~tp ->
     globally (fun ctx -> Global_ctx.extend ~name ~tm ~tp ~ctx)
+
+  
+  let fail (e : exn) : 'a elab =
+    let* ctx = read in
+    let loc = ctx.loc in
+    match e with
+      | Error e -> fail @@ Error (Raw.show_loc_code loc ^ "\n\n" ^ e)
+      | Hole e -> fail @@ Hole (Raw.show_loc_code loc ^ "\n" ^ e)
+      | _ -> fail e
 
 end
 type 'a elab = 'a ElabMonad.t
@@ -204,6 +200,10 @@ struct
   let extend : Dom.t -> 'a eval -> 'a eval = fun tm ->
     locally (fun ctx -> tm :: ctx)
  
+  let multi_extend : Dom.t list -> 'a eval -> 'a eval = fun tms ->
+    locally (fun ctx -> tms @ ctx)
+
+
 end
 type 'a eval = 'a EvalMonad.t
 
@@ -224,9 +224,8 @@ struct
     let+ ctx = read in
     ctx.global
 
-  let lift_comp : 'a comp -> 'a quote = fun cmp ->
-    let+ global = read_global in
-    CompMonad.run cmp global
+  let lift_comp : 'a comp -> 'a quote = fun cmp ctx ->
+    cmp ctx.global
 
   let abstract : tp:Dom.tp -> (Dom.t -> 'a quote) -> 'a quote = fun ~tp k ->
     let* lvl = read_lvl in
@@ -238,23 +237,22 @@ type 'a quote = 'a QuoteMonad.t
 module ConvMonad =
 struct
   include M.Reader (ConvLocal)
+
+  exception Error of string
   type 'a conv = 'a t
 
   let read_lvl : int conv =
     let+ ctx = read in
     ctx.lvl
 
-  let lift_quote : unfold:bool -> 'a quote -> 'a conv = fun ~unfold qu ->
-    let+ ctx = read in
-    QuoteMonad.run qu {global = ctx.global ; unfold ; lvl = ctx.lvl}
+  let lift_quote : unfold:bool -> 'a quote -> 'a conv = fun ~unfold qu ctx ->
+    qu {global = ctx.global ; unfold ; lvl = ctx.lvl}
   
-  let lift_print : 'a print -> 'a conv = fun pr ->
-    let+ ctx = read in
-    PrintMonad.run pr ctx.names 
+  let lift_print : 'a print -> 'a conv = fun pr ctx ->
+    pr ctx.names 
 
-  let lift_comp : 'a comp -> 'a conv = fun cmp ->
-    let+ ctx = read in 
-    CompMonad.run cmp ctx.global
+  let lift_comp : 'a comp -> 'a conv = fun cmp ctx ->
+    cmp ctx.global
 
   let abstract : name:string -> tp:Dom.tp -> (Dom.t -> 'a conv) -> 'a conv = fun ~name ~tp k ->
     let* lvl = read_lvl in
@@ -268,19 +266,16 @@ struct
   include M.ReaderState (CmdState)
   type 'a cmd = 'a t
 
-  let lift_print : 'a print -> 'a cmd = fun p ->
-    ret @@ PrintMonad.run p []
+  let lift_print : 'a print -> 'a cmd = fun p (g,_) ->
+    (g,PrintMonad.run p [])
 
-  let lift_elab : Raw.loc -> 'a elab -> 'a cmd = fun loc e ->
-    let+ state = get in
-    ElabMonad.run e {global = state.global ; local = Local_ctx.empty ; loc} 
+  let lift_elab : Raw.loc -> 'a elab -> 'a cmd = fun loc e (g,_) ->
+    (g,ElabMonad.run e {global = g.global ; local = Local_ctx.empty ; loc})
 
-  let lift_quote : unfold:bool -> 'a quote -> 'a cmd = fun ~unfold q ->
-    let+ state = get in
-    QuoteMonad.run q {global = state.global ; lvl = 0 ; unfold}
-  let lift_eval : 'a eval -> 'a cmd = fun ev -> 
-    let+ global = get in
-    EvalMonad.run ev {global = global.global ; env = Local_ctx.empty.env}
+  let lift_quote : unfold:bool -> 'a quote -> 'a cmd = fun ~unfold q (g,_) ->
+    (g,QuoteMonad.run q {global = g.global ; lvl = 0 ; unfold})
+  let lift_eval : 'a eval -> 'a cmd = fun ev (g,_) ->
+   (g,EvalMonad.run ev {global = g.global ; env = Local_ctx.empty.env})
 
   let define ~name ~tm ~tp : unit cmd =
     let* state = get in

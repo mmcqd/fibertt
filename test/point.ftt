@@ -7,7 +7,7 @@ def Pi : sig {dom : Type ; cod : dom -> Type} -> Type =>
     \args => (x : args.dom) -> args.cod x
 
 def Fun : sig {dom : Type ; cod : Type} -> Type =>
-    \args => args.dom -> args.cod
+    \args => Point [tp => args.dom] -> Point [tp => args.cod]
 
 def >> (f : Fun) (g : Fun [dom => f.cod]) : Fun [dom => f.dom ; cod => g.cod] =>
     {pt => \x => g.pt (f.pt x)}

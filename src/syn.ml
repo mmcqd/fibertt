@@ -12,7 +12,8 @@ type t =
   | Sig of signature
   | Struct of (string * t) list
   | Proj of string * t
-  
+  (* | Patch of signature *)
+
 and tp = t
 
 and signature =
@@ -22,4 +23,6 @@ and signature =
 and quantifier = string * tp * tp
 [@@ deriving show {with_path = false}]
 
-
+let rec signature_to_list = function
+  | Nil -> []
+  | Cons (f,tp,sign) -> (f,tp) :: signature_to_list sign

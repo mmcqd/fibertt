@@ -1,0 +1,20 @@
+
+def Nat : Type =>
+    (Nat : Type)
+    (zero : Nat)
+    (suc : Nat -> Nat)
+    -> Nat
+
+def zero : Nat => \Nat zero suc => zero
+def suc (n : Nat) : Nat => \Nat zero suc => suc (n Nat zero suc)
+
+def 0 : Nat => zero
+def 1 : Nat => suc 0
+def 2 : Nat => suc 1
+def 3 : Nat => suc 2
+def 4 : Nat => suc 3
+def 5 : Nat => suc 4
+
+def + (n m : Nat) : Nat => n Nat m suc
+
+def * (n m : Nat) : Nat => n Nat zero (+ m)

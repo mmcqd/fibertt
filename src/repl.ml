@@ -65,17 +65,14 @@ let rec run_cmd : Raw.cmd -> unit cmd = let open CmdMonad in function
   | Raw.Def {name ; tm} ->
     let* tp,tm = lift_elab tm.loc @@ Tactic.run_syn @@ Elab.synth tm in
     let* tm = lift_eval @@ Eval.eval tm in
-    let* tp_s = lift_quote ~unfold:false @@ Quote.quote tp Dom.U in
-    let* pp_tp = lift_print @@ Pretty.print tp_s in
-    printf "def %s : %s\n\n" name pp_tp; 
+    printf "def %s\n\n" name; 
     define ~name ~tm ~tp
   | Raw.DefChk {name ; tm ; tp} ->
     let* tp = lift_elab tp.loc @@ Tactic.run_chk ~goal:Dom.U (Elab.check tp) in
     let* tp_d = lift_eval @@ Eval.eval tp in 
     let* tm = lift_elab tm.loc @@ Tactic.run_chk ~goal:tp_d (Elab.check tm) in
     let* tm_d = lift_eval @@ Eval.eval tm in
-    let* pp_tp = lift_print @@ Pretty.print tp in
-    printf "def %s : %s\n\n" name pp_tp; 
+    printf "def %s\n\n" name; 
     define ~name ~tm:tm_d ~tp:tp_d
   | Raw.DefFun {name ; doms ; ran ; body} ->
     let tp = Raw.{con = Raw.Pi (doms,ran) ; loc = ran.loc} in
@@ -85,8 +82,8 @@ let rec run_cmd : Raw.cmd -> unit cmd = let open CmdMonad in function
     let path = modu ^ ".ftt" in
     let* cmdLocal = read in
     if List.mem ~equal:String.equal cmdLocal.importing path then failwith (sprintf "Cylcic module dependency: %s" (show_module_deps (path :: cmdLocal.importing)));
-    let* () = run_cmd_list @@ parse `File path in
     printf "import %s\n\n" modu;
+    let* () = run_cmd_list @@ parse `File path in
     import path
 
 
@@ -95,23 +92,19 @@ and run_cmd_list : Raw.cmd list -> unit cmd = fun xs -> let open CmdMonad in
   ()
 
 let rec repl : unit -> unit cmd = let open CmdMonad in fun () ->
-  try
   print_string "⊢ ";
   let txt = Stdlib.read_line () in
   if String.equal txt "" then ignore @@ repl ();
   let* () = run_cmd_list @@ parse `String txt in
   repl ()
-  with 
-    | ElabMonad.Hole h -> print_endline h; ret ()
-    | ElabMonad.Error e -> printf "Elaboration Error:\n%s" e; repl ()
 
 let _ : unit = let open CmdMonad in
   let args = Sys.get_argv () in
   try
-  if Array.length args = 1 then CmdMonad.run {global = Global_ctx.empty ; imported = []} {importing = []} (repl ());
+  if Array.length args = 1 then CmdMonad.run_exn {global = Global_ctx.empty ; imported = []} {importing = []} (repl ());
   let cmds = parse `File args.(1) in
   let go = let* () = run_cmd_list cmds in repl () in
-  CmdMonad.run {global = Global_ctx.empty ; imported = []} {importing = []} go
+  CmdMonad.run_exn {global = Global_ctx.empty ; imported = []} {importing = []} go
   with
     | ElabMonad.Hole h -> print_endline h
     | ElabMonad.Error e -> printf "Elaboration Error:\n%s" e

@@ -73,6 +73,7 @@ let struct_elem :=
 
 let patch :=
   | field = IDENT; R_EQ_ARROW; tm = term; { `Patch (field,tm) }
+  | p = IDENT; LSQAURE; patches = separated_list(SEMICOLON,patch); RSQUARE; { `RecPatch (p,patches) }
   | p = IDENT; { `Field p }
 
 let term := loc(term_)
@@ -84,7 +85,6 @@ let term_ :=
   | SUB; tp = atom; tm = atom; { Singleton {tm ; tp} }
   | SIG; LCURLY; fields = separated_list(SEMICOLON,sig_elem); RCURLY; { Sig fields }
   | sign = atom; LSQAURE; patches = separated_list(SEMICOLON,patch); RSQUARE; { Patch (sign,patches) }
-  | ~ = atom; HASH; <Total>
   | lam_term_
 
 let lam_term := loc(lam_term_)

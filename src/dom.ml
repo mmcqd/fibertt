@@ -17,6 +17,7 @@ and head =
 and elim =
   | Ap of {tm : t ; tp : t [@opaque]}
   | Proj of string
+  (* | Patch of signature *)
 
 and spine = elim list
 

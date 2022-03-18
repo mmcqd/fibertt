@@ -53,5 +53,5 @@ and comment nesting = parse
 
 and comment_line = parse
   | '\n' { Lexing.new_line lexbuf; initial lexbuf }
-  | eof { failwith "Reached EOF in comment" }
+  | eof { EOF }
   | _ { comment_line lexbuf }

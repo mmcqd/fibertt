@@ -40,6 +40,7 @@ let rec quote (tm : Dom.t) (tp : Dom.tp) : Syn.t quote = let open QuoteMonad in
     | Dom.Sig fields, Dom.Struct xs -> 
       let+ fs = quote_struct fields xs in
       Syn.Struct fs
+    (* |_ ,Dom.Neu {tp = Singleton {tm ; tp} ; _} -> quote tm tp *)
     |_ ,Dom.Neu {hd = Def {name ; value} ; sp ; _} ->
       let* unfold = read_unfold in
       if unfold then quote (Lazy.force value) tp else quote_spine (Syn.Def name) sp
@@ -84,3 +85,18 @@ and quote_spine (hd : Syn.t) : Dom.elim list -> Syn.t quote = let open QuoteMona
   | Dom.Proj field :: sp -> 
     let+ e = quote_spine hd sp in
     Syn.Proj (field,e)
+
+
+let rec quote_local_ctx_ (tps : (string * Dom.t) list) : (string * Syn.t) list quote = let open QuoteMonad in
+  match tps with
+    | [] -> ret []
+    | (v,tp) :: tps ->
+      let* tp_syn = quote tp Dom.U in
+      let+ tps = abstract ~tp @@ fun _ -> quote_local_ctx_ tps in
+      (v,tp_syn) :: tps
+
+let quote_local_ctx tps : (string * Syn.t) list comp = let open CompMonad in
+  let* global = read in
+  match quote_local_ctx_ tps {lvl = 0 ; global ; unfold = false} with
+    | Ok ctx -> ret ctx
+    | Error e -> fail e

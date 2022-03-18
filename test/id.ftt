@@ -1,11 +1,27 @@
+import test/point
 
+def Id : sig {l : Point ; r : Point [tp => l.tp]} -> Type =>
+    \args => (B : Point [tp => args.l.tp] -> Type) -> B args.l -> B args.r
 
-def Id : sig {tp : Type ; l : tp ; r : tp} -> Type => 
-    \args => (B : args.tp -> Type) -> B args.l -> B args.r
-
-def refl (A : Type) (x : A) : Id [tp => A ; l => x ; r => x] => 
+def refl (x : Point) : Id [l => x ; r => x] =>
     {pt => \B p => p}
 
+def sym (p : Id) : Id [l => p.r ; r => p.l] =>
+    {pt => p.pt (\y => Id {l => y ; r => p.l}) (\B p => p)}
+     
+def trans (p : Id) : (q : Id [l => p.r]) -> Id [l => p.l ; r => q.r] =>
+    p.pt (\y => (q : Id [l => y]) -> Id [l => p.l ; r => q.r]) \q => q
 
-def sym (p : Id) : Id [tp => p.tp ; l => p.r ; r => p.l] =>
-    {pt => p.pt (\y => Id {tp => p.tp ; l => y ; r => p.l}) (\B p => p)}
+def ap (p : Id) (f : Fun [dom => p.l.tp]) : Id [l => f.pt p.l ; r => f.pt p.r] => 
+    p.pt (\y => Id [l => f.pt p.l ; r => f.pt y]) {pt => \B p => p}
+
+def subst (p : Id) : (P : Point [tp => p.l.tp] -> Type) -> P p.l -> P p.r => p.pt
+
+-- def ap (f : Fun) (p : Id [l [tp => f.dom]]) : Id [l => f.pt p.l ; r => f.pt p.r] => Type
+
+
+-- def test : Type => Id [l [tp => Type]]
+-- def test (p : Id [l [tp => Type]]) (f : Sub Type Type -> Type) : Type => f p.r.pt
+
+def Unit : Type => sig {}
+def <> : Unit => {}

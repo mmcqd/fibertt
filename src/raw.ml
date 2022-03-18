@@ -10,7 +10,7 @@ type _t =
   | Sig of (string * t) list
   | Struct of (string * t) list
   | Proj of string * t
-  | Patch of t * [`Patch of string * t | `Field of string] list
+  | Patch of t * patch list
   | Point of t
   | Hole
   | Total of t
@@ -24,6 +24,12 @@ and loc = Lexing.position * Lexing.position
   [@opaque]
 
 and tele = (string list * t) list
+
+and patch = [
+  | `Patch of string * t
+  | `Field of string
+  | `RecPatch of string * patch list
+]
 
 let show_pos (pos : Lexing.position) = sprintf "%i:%i" pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
 let show_loc ((s,e) : loc) = 
